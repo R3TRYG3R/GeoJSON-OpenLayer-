@@ -5,21 +5,21 @@ import { parseShapefile } from "./parseShapefile";
 const getFileExtension = (filename: string) => filename.split(".").pop()?.toLowerCase();
 
 export const parseFile = async (file: File) => {
-  try {
-    const ext = getFileExtension(file.name);
+  const ext = getFileExtension(file.name);
+  console.log(`📂 Загружен файл: ${file.name}, формат: ${ext}`);
 
-    switch (ext) {
-      case "csv":
-        return await parseCSV(file);
-      case "geojson":
-        return await parseGeoJSON(file);
-      case "shp":
-        return await parseShapefile(file);
-      default:
-        throw new Error("❌ Неподдерживаемый формат файла");
-    }
-  } catch (error) {
-    console.error("❌ Ошибка при обработке файла:", error);
-    return null; // Возвращаем null, чтобы избежать краша
+  switch (ext) {
+    case "csv":
+      console.log("➡️ Выбран CSV парсер");
+      return parseCSV(file);
+    case "geojson":
+      console.log("➡️ Выбран GeoJSON парсер");
+      return parseGeoJSON(file);
+    case "zip": // ✅ Поддержка ZIP
+      console.log("➡️ Выбран Shapefile парсер (ZIP)");
+      return parseShapefile(file);
+    default:
+      console.error("❌ Ошибка: неподдерживаемый формат файла!");
+      return Promise.reject(new Error("Неподдерживаемый формат файла"));
   }
 };
