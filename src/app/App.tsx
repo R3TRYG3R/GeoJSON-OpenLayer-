@@ -1,11 +1,12 @@
+import { MapProvider } from "../context/MapContext";
 import { ImportPage } from "../pages/import/ImportPage";
 
 function App() {
-  return(
-    <>
-      <ImportPage/>
-    </>
-  )
+  return (
+    <MapProvider>
+      <ImportPage />
+    </MapProvider>
+  );
 }
 
-export default App
+export default App;
