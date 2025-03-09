@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
+import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable"; 
 
 export const ImportPage = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null!); 
+  const inputRef = useRef<HTMLInputElement>(null!);
 
   const handleFileParsed = (data: any) => {
     try {
@@ -23,7 +24,7 @@ export const ImportPage = () => {
     setParsedData(null);
 
     if (inputRef.current) {
-      inputRef.current.value = ""; 
+      inputRef.current.value = "";
     }
   };
 
@@ -54,6 +55,10 @@ export const ImportPage = () => {
       >
         <MapPreview geojsonData={parsedData} />
       </div>
+
+      {/* ✅ Добавляем таблицу */}
+      <h2 className="text-lg font-semibold mt-4">Таблица данных</h2>
+      <FeatureTable geojsonData={parsedData} />
     </div>
   );
 };
