@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
-import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable"; 
+import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
+import { useSelectedFeature } from "../../context/SelectedFeatureContext"; // ✅ Подключаем контекст
 
 export const ImportPage = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
   const inputRef = useRef<HTMLInputElement>(null!);
+  const { setSelectedFeature } = useSelectedFeature(); // ✅ Достаём функцию для сброса выделения
 
   const handleFileParsed = (data: any) => {
     try {
@@ -22,6 +24,7 @@ export const ImportPage = () => {
   const handleClearMap = () => {
     console.log("🗑 Очищаем карту и сбрасываем данные...");
     setParsedData(null);
+    setSelectedFeature(null); // ✅ Теперь при очистке карты очищается и выделенный объект
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -56,9 +59,8 @@ export const ImportPage = () => {
         <MapPreview geojsonData={parsedData} />
       </div>
 
-      {/* ✅ Добавляем таблицу */}
       <h2 className="text-lg font-semibold mt-4">Таблица данных</h2>
-      <FeatureTable geojsonData={parsedData} />
+      <FeatureTable />
     </div>
   );
 };

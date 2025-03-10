@@ -1,91 +1,104 @@
-import React, { useEffect, useState } from "react";
+import { JSX } from "react";
+import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import { Point, LineString, Polygon } from "ol/geom";
+import { toLonLat } from "ol/proj"; // ✅ Добавляем функцию для перевода координат
 
-interface FeatureTableProps {
-  geojsonData: any;
-}
+export const FeatureTable = () => {
+  const { selectedFeature } = useSelectedFeature();
 
-export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
-  const [expanded, setExpanded] = useState<number | null>(null);
-
-  useEffect(() => {
-    console.log("🟢 Debug: Загруженные данные для таблицы:", geojsonData);
-  }, [geojsonData]);
-
-  if (!geojsonData || !geojsonData.features?.length) {
-    return <p className="text-gray-500">No info</p>;
+  if (!selectedFeature) {
+    return <p className="text-gray-500">Выберите объект на карте</p>;
   }
 
-  const features = geojsonData.features;
+  // ✅ Извлекаем свойства объекта
+  const properties = selectedFeature.getProperties();
 
-  // Собираем ВСЕ ключи из properties + id + geometryType (но без latitude/longitude)
-  const allKeys = new Set<string>(["id", "geometryType"]);
+  // ✅ Извлекаем геометрию (координаты)
+  const geometry = selectedFeature.getGeometry();
+  let coordinates: string | JSX.Element | null = null;
+  let geometryType = "Не определено";
 
-  features.forEach((feature: any) => {
-    if (feature.properties) {
-      Object.keys(feature.properties).forEach((key) => {
-        if (!["latitude", "longitude"].includes(key)) {
-          allKeys.add(key);
-        }
-      });
+  // ✅ Определяем, является ли источник GeoJSON
+  const isGeoJSON = !properties.latitude && !properties.longitude;
+
+  if (geometry) {
+    geometryType = geometry.getType();
+
+    try {
+      if (geometry instanceof Point) {
+        // ✅ Точка (Point)
+        const coord = toLonLat(geometry.getCoordinates()); // 📌 Конвертируем обратно в широту-долготу
+        coordinates = isGeoJSON
+          ? `📍 ${coord[1]}, ${coord[0]}`
+          : null;
+      } else if (geometry instanceof LineString) {
+        // ✅ Линия (LineString) - список координат
+        coordinates = isGeoJSON ? (
+          <ul className="mt-2 text-sm">
+            {geometry.getCoordinates().map((coord, i) => {
+              const [lon, lat] = toLonLat(coord); // 📌 Конвертируем
+              return (
+                <li key={i} className="text-gray-700">
+                  {`📍 ${lat}, ${lon}`}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null;
+      } else if (geometry instanceof Polygon) {
+        // ✅ Полигон (Polygon) - список координат внешнего кольца
+        coordinates = isGeoJSON ? (
+          <ul className="mt-2 text-sm">
+            {geometry.getCoordinates()[0]?.map((coord, i) => {
+              const [lon, lat] = toLonLat(coord); // 📌 Конвертируем
+              return (
+                <li key={i} className="text-gray-700">
+                  {`📍 ${lat}, ${lon}`}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null;
+      }
+    } catch (error) {
+      console.error("❌ Ошибка при обработке координат:", error);
+      coordinates = "⚠️ Ошибка при обработке координат";
     }
-  });
-
-  const headers = Array.from(allKeys);
+  }
 
   return (
     <div className="overflow-x-auto mt-4 border rounded-lg">
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr className="bg-gray-100">
-            {headers.map((header) => (
-              <th key={header} className="border border-gray-300 px-4 py-2 text-left">
-                {header}
-              </th>
-            ))}
-            <th className="border border-gray-300 px-4 py-2 text-left">Coordinates</th>
+            <th className="border border-gray-300 px-4 py-2">Свойство</th>
+            <th className="border border-gray-300 px-4 py-2">Значение</th>
           </tr>
         </thead>
         <tbody>
-          {features.map((feature: any, index: number) => {
-            const coordinates = feature.geometry?.coordinates ?? [];
-            const geometryType = feature.geometry?.type ?? "-";
-
-            return (
-              <tr key={index} className="border-t border-gray-300">
-                {headers.map((header) => {
-                  let value = feature.properties?.[header] ?? "-";
-                  if (header === "id") value = index + 1;
-                  if (header === "geometryType") value = geometryType;
-                  return (
-                    <td key={header} className="border border-gray-300 px-4 py-2">
-                      {value}
-                    </td>
-                  );
-                })}
-
-                {/* ОДНА КНОПКА "ПОКАЗАТЬ" ДЛЯ ВСЕХ ФАЙЛОВ */}
-                <td className="border border-gray-300 px-4 py-2">
-                  <button
-                    className="text-blue-500 underline"
-                    onClick={() => setExpanded(expanded === index ? null : index)}
-                  >
-                    {expanded === index ? "Скрыть" : "Показать"}
-                  </button>
-                  {expanded === index && (
-                    <ul className="mt-2 text-sm">
-                      {Array.isArray(coordinates[0])
-                        ? coordinates.map((coord: number[], i: number) => (
-                            <li key={i} className="text-gray-700">
-                              {`📍 ${coord[1]}, ${coord[0]}`}
-                            </li>
-                          ))
-                        : `📍 ${coordinates[1]}, ${coordinates[0]}`}
-                    </ul>
-                  )}
-                </td>
+          {/* ✅ Показываем тип геометрии (Один раз) */}
+          <tr className="border-t border-gray-300">
+            <td className="border border-gray-300 px-4 py-2 font-bold">Тип геометрии</td>
+            <td className="border border-gray-300 px-4 py-2">{geometryType}</td>
+          </tr>
+          
+          {/* ✅ Показываем свойства объекта, кроме geometry */}
+          {Object.entries(properties)
+                  .filter(([key]) => key !== "geometry" && key !== "geometryType") // Исключаем geometryType
+                  .map(([key, value]) => (
+              <tr key={key} className="border-t border-gray-300">
+                <td className="border border-gray-300 px-4 py-2">{key}</td>
+                <td className="border border-gray-300 px-4 py-2">{String(value)}</td>
               </tr>
-            );
-          })}
+            ))}
+
+          {/* ✅ Показываем координаты ТОЛЬКО если это GeoJSON */}
+          {isGeoJSON && coordinates && (
+            <tr className="border-t border-gray-300">
+              <td className="border border-gray-300 px-4 py-2 font-bold">Координаты</td>
+              <td className="border border-gray-300 px-4 py-2">{coordinates}</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
