@@ -1,69 +1,16 @@
-import { JSX } from "react";
+import React, { JSX } from "react";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
-import { Point, LineString, Polygon } from "ol/geom";
-import { toLonLat } from "ol/proj"; // ✅ Добавляем функцию для перевода координат
 
-export const FeatureTable = () => {
+interface FeatureTableProps {
+  geojsonData: any;
+}
+
+export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const { selectedFeature } = useSelectedFeature();
 
-  if (!selectedFeature) {
-    return <p className="text-gray-500">Выберите объект на карте</p>;
-  }
-
-  // ✅ Извлекаем свойства объекта
-  const properties = selectedFeature.getProperties();
-
-  // ✅ Извлекаем геометрию (координаты)
-  const geometry = selectedFeature.getGeometry();
-  let coordinates: string | JSX.Element | null = null;
-  let geometryType = "Не определено";
-
-  // ✅ Определяем, является ли источник GeoJSON
-  const isGeoJSON = !properties.latitude && !properties.longitude;
-
-  if (geometry) {
-    geometryType = geometry.getType();
-
-    try {
-      if (geometry instanceof Point) {
-        // ✅ Точка (Point)
-        const coord = toLonLat(geometry.getCoordinates()); // 📌 Конвертируем обратно в широту-долготу
-        coordinates = isGeoJSON
-          ? `📍 ${coord[1]}, ${coord[0]}`
-          : null;
-      } else if (geometry instanceof LineString) {
-        // ✅ Линия (LineString) - список координат
-        coordinates = isGeoJSON ? (
-          <ul className="mt-2 text-sm">
-            {geometry.getCoordinates().map((coord, i) => {
-              const [lon, lat] = toLonLat(coord); // 📌 Конвертируем
-              return (
-                <li key={i} className="text-gray-700">
-                  {`📍 ${lat}, ${lon}`}
-                </li>
-              );
-            })}
-          </ul>
-        ) : null;
-      } else if (geometry instanceof Polygon) {
-        // ✅ Полигон (Polygon) - список координат внешнего кольца
-        coordinates = isGeoJSON ? (
-          <ul className="mt-2 text-sm">
-            {geometry.getCoordinates()[0]?.map((coord, i) => {
-              const [lon, lat] = toLonLat(coord); // 📌 Конвертируем
-              return (
-                <li key={i} className="text-gray-700">
-                  {`📍 ${lat}, ${lon}`}
-                </li>
-              );
-            })}
-          </ul>
-        ) : null;
-      }
-    } catch (error) {
-      console.error("❌ Ошибка при обработке координат:", error);
-      coordinates = "⚠️ Ошибка при обработке координат";
-    }
+  // ✅ Проверяем, есть ли данные
+  if (!geojsonData || !geojsonData.features?.length) {
+    return <p className="text-gray-500">Нет данных</p>;
   }
 
   return (
@@ -71,34 +18,72 @@ export const FeatureTable = () => {
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr className="bg-gray-100">
-            <th className="border border-gray-300 px-4 py-2">Свойство</th>
-            <th className="border border-gray-300 px-4 py-2">Значение</th>
+            <th className="border px-4 py-2">ID</th>
+            <th className="border px-4 py-2">Тип геометрии</th>
+            <th className="border px-4 py-2">Свойства</th>
+            <th className="border px-4 py-2">Координаты</th>
           </tr>
         </thead>
         <tbody>
-          {/* ✅ Показываем тип геометрии (Один раз) */}
-          <tr className="border-t border-gray-300">
-            <td className="border border-gray-300 px-4 py-2 font-bold">Тип геометрии</td>
-            <td className="border border-gray-300 px-4 py-2">{geometryType}</td>
-          </tr>
-          
-          {/* ✅ Показываем свойства объекта, кроме geometry */}
-          {Object.entries(properties)
-                  .filter(([key]) => key !== "geometry" && key !== "geometryType") // Исключаем geometryType
-                  .map(([key, value]) => (
-              <tr key={key} className="border-t border-gray-300">
-                <td className="border border-gray-300 px-4 py-2">{key}</td>
-                <td className="border border-gray-300 px-4 py-2">{String(value)}</td>
-              </tr>
-            ))}
+          {geojsonData.features.map((feature: any, index: number) => {
+            const geometry = feature.geometry;
+            const properties = feature.properties;
+            let coordinates: string | JSX.Element = "Нет данных";
+            let geometryType = geometry?.type || "Не определено";
 
-          {/* ✅ Показываем координаты ТОЛЬКО если это GeoJSON */}
-          {isGeoJSON && coordinates && (
-            <tr className="border-t border-gray-300">
-              <td className="border border-gray-300 px-4 py-2 font-bold">Координаты</td>
-              <td className="border border-gray-300 px-4 py-2">{coordinates}</td>
-            </tr>
-          )}
+            // ✅ Определяем, является ли это GeoJSON
+            const isGeoJSON = geojsonData.type === "FeatureCollection";
+
+            if (geometry && isGeoJSON) {
+              try {
+                if (geometry.type === "Point") {
+                  // ✅ Точка (широта и долгота совпадают)
+                  const [lon, lat] = geometry.coordinates;
+                  coordinates = `📍 ${lat}, ${lon}`;
+                } else if (geometry.type === "LineString") {
+                  coordinates = (
+                    <ul>
+                      {geometry.coordinates.map((coord: number[], i: number) => {
+                        const [lon, lat] = coord;
+                        return <li key={i}>{`📍 ${lat}, ${lon}`}</li>;
+                      })}
+                    </ul>
+                  );
+                } else if (geometry.type === "Polygon") {
+                  coordinates = (
+                    <ul>
+                      {geometry.coordinates[0]?.map((coord: number[], i: number) => {
+                        const [lon, lat] = coord;
+                        return <li key={i}>{`📍 ${lat}, ${lon}`}</li>;
+                      })}
+                    </ul>
+                  );
+                }
+              } catch (error) {
+                console.error("Ошибка обработки координат:", error);
+                coordinates = "⚠️ Ошибка";
+              }
+            }
+
+            return (
+              <tr key={index} className="cursor-pointer hover:bg-gray-100">
+                <td className="border px-4 py-2">{index + 1}</td>
+                <td className="border px-4 py-2">{geometryType}</td>
+                <td className="border px-4 py-2">
+                  <ul>
+                    {Object.entries(properties)
+                      .filter(([key]) => key !== "geometryType")
+                      .map(([key, value]) => (
+                        <li key={key}>
+                          <b>{key}:</b> {String(value)}
+                        </li>
+                      ))}
+                  </ul>
+                </td>
+                <td className="border px-4 py-2">{coordinates}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

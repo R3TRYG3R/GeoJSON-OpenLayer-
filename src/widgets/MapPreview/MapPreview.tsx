@@ -4,20 +4,25 @@ import Vector from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { fromLonLat } from "ol/proj";
 import { AZERBAIJAN_CENTER, AZERBAIJAN_ZOOM, useMap } from "../../context/MapContext";
-import { useSelectedFeature } from "../../context/SelectedFeatureContext"; // Контекст выделенного объекта
+import { useSelectedFeature } from "../../context/SelectedFeatureContext";
 import Feature from "ol/Feature";
 import { Geometry } from "ol/geom";
 import { Style, Fill, Stroke, Circle as CircleStyle } from "ol/style";
 
-export const MapPreview = ({ geojsonData }: { geojsonData: any }) => {
+interface MapPreviewProps {
+  geojsonData: any;
+}
+
+export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   const { mapRef, isMapReady, mapInstance } = useMap();
-  const { setSelectedFeature } = useSelectedFeature();
+  const { selectedFeature, setSelectedFeature } = useSelectedFeature();
   const vectorLayerRef = useRef<VectorLayer | null>(null);
   const vectorSourceRef = useRef<Vector | null>(null);
 
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
+    // Если данных нет – очищаем карту и сбрасываем камеру
     if (!geojsonData || !geojsonData.features?.length) {
       console.log("🗑 Очищаем карту, сбрасываем на Азербайджан...");
       if (vectorLayerRef.current) {
@@ -46,33 +51,25 @@ export const MapPreview = ({ geojsonData }: { geojsonData: any }) => {
         }
       });
 
-      const vectorSource = new Vector({
-        features,
+      const vectorSource = new Vector({ features });
+
+      // ✅ Стили
+      const defaultStyle = new Style({
+        stroke: new Stroke({ color: "blue", width: 2 }),
+        fill: new Fill({ color: "rgba(0, 0, 255, 0.3)" }),
+        image: new CircleStyle({ radius: 6, fill: new Fill({ color: "blue" }) }),
       });
 
-      // ✅ Создаем стили для точек и полигонов
-      const pointStyle = new Style({
-        image: new CircleStyle({
-          radius: 6,
-          fill: new Fill({ color: "blue" }), // Cиний цвет для точек
-          stroke: new Stroke({ color: "white", width: 2 }), // Белый контур
-        }),
-      });
-
-      const polygonStyle = new Style({
-        stroke: new Stroke({
-          color: "blue", // Синий контур для полигонов
-          width: 2,
-        }),
-        fill: new Fill({
-          color: "rgba(0, 0, 255, 0.3)", // Полупрозрачная заливка
-        }),
+      const selectedStyle = new Style({
+        stroke: new Stroke({ color: "red", width: 3 }),
+        fill: new Fill({ color: "rgba(255, 0, 0, 0.3)" }),
+        image: new CircleStyle({ radius: 6, fill: new Fill({ color: "red" }) }),
       });
 
       const vectorLayer = new VectorLayer({
         source: vectorSource,
         style: (feature) =>
-          feature.getGeometry()?.getType() === "Point" ? pointStyle : polygonStyle, // Условие для разных типов геометрии
+          selectedFeature && feature.getId() === selectedFeature.getId() ? selectedStyle : defaultStyle,
       });
 
       if (vectorLayerRef.current) {
@@ -84,7 +81,7 @@ export const MapPreview = ({ geojsonData }: { geojsonData: any }) => {
       vectorLayerRef.current = vectorLayer;
       vectorSourceRef.current = vectorSource;
 
-      // ✅ Добавляем приближение к загруженным данным
+      // ✅ Центрируем карту
       const extent = vectorSource.getExtent();
       if (extent && extent[0] !== Infinity) {
         console.log("🔄 Центрируем карту на данных...");
@@ -97,30 +94,33 @@ export const MapPreview = ({ geojsonData }: { geojsonData: any }) => {
         console.warn("⚠️ Невозможно центрировать карту: пустой `extent`.");
       }
 
-      // ✅ Добавляем обработчик кликов по полигонам и точкам
+      // ✅ Обработчик клика по объекту
       mapInstance.current.on("click", (event) => {
-        let selectedFeature: Feature<Geometry> | null = null;
+        let clickedFeature: Feature<Geometry> | null = null;
 
-        mapInstance.current?.forEachFeatureAtPixel(event.pixel, (featureLike) => {
-          if (featureLike instanceof Feature) {
-            selectedFeature = featureLike as Feature<Geometry>;
-            return true; // Прекращаем поиск после первого найденного объекта
-          }
-        }, { hitTolerance: 10 }); // ✅ Увеличиваем чувствительность клика
+        mapInstance.current?.forEachFeatureAtPixel(
+          event.pixel,
+          (featureLike) => {
+            if (featureLike instanceof Feature) {
+              clickedFeature = featureLike as Feature<Geometry>;
+              return true;
+            }
+          },
+          { hitTolerance: 10 }
+        );
 
-        if (selectedFeature) {
-          console.log("✅ Выбран объект:", selectedFeature);
-          setSelectedFeature(selectedFeature); // ✅ Обновляем выделенный объект
+        if (clickedFeature) {
+          console.log("✅ Выбран объект:", clickedFeature);
+          setSelectedFeature(clickedFeature);
         } else {
           console.log("🗑 Объект не выбран");
           setSelectedFeature(null);
         }
       });
-
     } catch (error) {
       console.error("❌ Ошибка загрузки GeoJSON:", error);
     }
-  }, [geojsonData, isMapReady]);
+  }, [geojsonData, isMapReady, selectedFeature]);
 
   return (
     <div
