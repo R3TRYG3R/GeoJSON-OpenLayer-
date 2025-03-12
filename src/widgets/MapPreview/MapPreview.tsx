@@ -22,7 +22,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
-    // Если данных нет – очищаем карту и сбрасываем камеру
+    // ✅ Если данных НЕТ – очищаем карту, но НЕ удаляем контейнер
     if (!geojsonData || !geojsonData.features?.length) {
       console.log("🗑 Очищаем карту, сбрасываем на Азербайджан...");
       if (vectorLayerRef.current) {
@@ -47,7 +47,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
 
       features.forEach((feature, index) => {
         if (!feature.getId()) {
-          feature.setId(index + 1); // Устанавливаем уникальный ID
+          feature.setId(index + 1);
         }
       });
 
@@ -125,8 +125,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   return (
     <div
       ref={mapRef}
-      className="w-full h-96 border border-gray-600 rounded-lg bg-gray-200"
-      style={{ minHeight: "500px", width: "100%" }}
+      className="map-container"
     />
   );
 };

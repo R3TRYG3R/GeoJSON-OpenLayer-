@@ -1,5 +1,6 @@
-import React, { JSX } from "react";
+import React, { JSX, useEffect, useState } from "react";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import "./FeatureTable.css";
 
 interface FeatureTableProps {
   geojsonData: any;
@@ -7,21 +8,42 @@ interface FeatureTableProps {
 
 export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const { selectedFeature } = useSelectedFeature();
+  const [selectedId, setSelectedId] = useState<string | number | null>(null);
 
-  // ✅ Проверяем, есть ли данные
+  // Обновляем ID выделенного объекта при клике
+  useEffect(() => {
+    if (selectedFeature) {
+      let featureId = selectedFeature.getId();
+
+      // Нормализуем ID
+      const normalizedId =
+        featureId !== undefined
+          ? typeof featureId === "string"
+            ? parseInt(featureId.replace(/\D/g, ""), 10) || featureId
+            : featureId
+          : null; // Если featureId = undefined, ставим null
+
+      console.log("🟢 Выбран объект с ID:", normalizedId);
+      setSelectedId(normalizedId);
+    } else {
+      console.log("⚪ Нет выбранного объекта");
+      setSelectedId(null);
+    }
+  }, [selectedFeature]);
+
   if (!geojsonData || !geojsonData.features?.length) {
-    return <p className="text-gray-500">Нет данных</p>;
+    return <p className="no-data">Нет данных</p>;
   }
 
   return (
-    <div className="overflow-x-auto mt-4 border rounded-lg">
-      <table className="min-w-full border-collapse border border-gray-300">
+    <div className="table-container">
+      <table className="feature-table">
         <thead>
-          <tr className="bg-gray-100">
-            <th className="border px-4 py-2">ID</th>
-            <th className="border px-4 py-2">Тип геометрии</th>
-            <th className="border px-4 py-2">Свойства</th>
-            <th className="border px-4 py-2">Координаты</th>
+          <tr>
+            <th>ID</th>
+            <th>Тип геометрии</th>
+            <th>Свойства</th>
+            <th>Координаты</th>
           </tr>
         </thead>
         <tbody>
@@ -31,13 +53,9 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
             let coordinates: string | JSX.Element = "Нет данных";
             let geometryType = geometry?.type || "Не определено";
 
-            // ✅ Определяем, является ли это GeoJSON
-            const isGeoJSON = geojsonData.type === "FeatureCollection";
-
-            if (geometry && isGeoJSON) {
+            if (geometry) {
               try {
                 if (geometry.type === "Point") {
-                  // ✅ Точка (широта и долгота совпадают)
                   const [lon, lat] = geometry.coordinates;
                   coordinates = `📍 ${lat}, ${lon}`;
                 } else if (geometry.type === "LineString") {
@@ -60,16 +78,33 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                   );
                 }
               } catch (error) {
-                console.error("Ошибка обработки координат:", error);
+                console.error("❌ Ошибка обработки координат:", error);
                 coordinates = "⚠️ Ошибка";
               }
             }
 
+            // Определяем корректный ID объекта
+            let featureId = feature.id ?? properties.id ?? index + 1;
+
+            // Приводим ID к такому же формату, как в `selectedFeature`
+            const normalizedFeatureId =
+              featureId !== undefined
+                ? typeof featureId === "string"
+                  ? parseInt(featureId.replace(/\D/g, ""), 10) || featureId
+                  : featureId
+                : null; // 🛠 Если featureId = undefined, ставим null
+
+            const isSelected = selectedId === normalizedFeatureId;
+
+            console.log(
+              `🔍 Объект ID: ${normalizedFeatureId} | Выбран? ${isSelected ? "✅ Да" : "❌ Нет"}`
+            );
+
             return (
-              <tr key={index} className="cursor-pointer hover:bg-gray-100">
-                <td className="border px-4 py-2">{index + 1}</td>
-                <td className="border px-4 py-2">{geometryType}</td>
-                <td className="border px-4 py-2">
+              <tr key={index} className={isSelected ? "selected" : ""}>
+                <td>{normalizedFeatureId}</td>
+                <td>{geometryType}</td>
+                <td>
                   <ul>
                     {Object.entries(properties)
                       .filter(([key]) => key !== "geometryType")
@@ -80,7 +115,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                       ))}
                   </ul>
                 </td>
-                <td className="border px-4 py-2">{coordinates}</td>
+                <td>{coordinates}</td>
               </tr>
             );
           })}

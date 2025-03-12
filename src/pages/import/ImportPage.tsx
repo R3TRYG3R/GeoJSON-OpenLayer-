@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
-import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable"; 
+import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
+import "./ImportPage.css"; 
 
 export const ImportPage = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
@@ -22,42 +23,28 @@ export const ImportPage = () => {
   const handleClearMap = () => {
     console.log("🗑 Очищаем карту и сбрасываем данные...");
     setParsedData(null);
-
     if (inputRef.current) {
       inputRef.current.value = "";
     }
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Импорт</h1>
-      <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
-
-      <button
-        onClick={handleClearMap}
-        className="mt-4 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-      >
-        Очистить карту
-      </button>
-
-      <h2 className="text-lg font-semibold mt-4">Показ</h2>
-      <div
-        style={{
-          width: "100%",
-          height: "500px",
-          minHeight: "500px",
-          display: "flex",
-          alignItems: "stretch",
-          justifyContent: "center",
-          backgroundColor: "lightgray",
-          border: "2px solid red",
-        }}
-      >
-        <MapPreview geojsonData={parsedData} />
+    <div className="import-container">
+      <div className="import-header">
+        <h1>Импорт</h1>
+        <div className="import-buttons">
+          <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
+          <button onClick={handleClearMap} className="clear-button">
+            Очистить карту
+          </button>
+        </div>
       </div>
 
-      {/* ✅ Убедись, что FeatureTable вызывается ТОЛЬКО здесь */}
-      <h2 className="text-lg font-semibold mt-4">Таблица данных</h2>
+      <div className="map-container">
+        <MapPreview geojsonData={parsedData || { type: "FeatureCollection", features: [] }} />
+      </div>
+
+      <h2 className="table-title">Таблица данных</h2>
       <FeatureTable geojsonData={parsedData} />
     </div>
   );
