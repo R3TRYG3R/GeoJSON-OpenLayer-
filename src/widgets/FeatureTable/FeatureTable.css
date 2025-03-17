@@ -1,26 +1,49 @@
 .table-container {
-    max-height: 400px; /* Фиксированная высота таблицы */
-    overflow-y: auto; /* Прокрутка */
-    border: 1px solid #ccc;
-    border-radius: 8px;
-  }
-  
-  .feature-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  
-  .feature-table th, .feature-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-  }
-  
-  .feature-table th {
-    background-color: #f4f4f4;
-    font-weight: bold;
-  }
-  
-  .feature-table tr.selected {
-    background-color: rgba(0, 0, 255, 0.2); /* Подсвечивание выбранного элемента */
-  }
+  max-height: 400px; /* Фиксированная высота таблицы */
+  overflow-y: auto; /* Вертикальная прокрутка */
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  position: relative;
+}
+
+/* Фиксированный заголовок при прокрутке */
+.feature-table thead {
+  position: sticky;
+  top: 0;
+  background-color: #f4f4f4;
+  z-index: 10;
+}
+
+/* Основные стили таблицы */
+.feature-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+}
+
+/* Ячейки таблицы */
+.feature-table th,
+.feature-table td {
+  border: 1px solid #bbb; 
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Заголовки */
+.feature-table th {
+  background-color: #e0e0e0;
+  font-weight: bold;
+}
+
+/* Подсветка выбранной строки */
+.feature-table tr.selected {
+  background-color: rgba(0, 0, 255, 0.2);
+  border-left: 4px solid blue; 
+}
+
+/* Эффект при наведении */
+.feature-table tr:hover {
+  background-color: rgba(0, 0, 255, 0.1);
+  cursor: pointer;
+}
