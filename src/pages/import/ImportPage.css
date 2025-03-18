@@ -1,54 +1,71 @@
+/* Контейнер всей страницы */
 .import-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 20px;
-  }
-  
-  /* Заголовок + кнопки */
-  .import-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  
-  .import-buttons {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  /* Кнопка очистки */
-  .clear-button {
-    padding: 8px 12px;
-    border: 1px solid #d9534f;
-    background-color: #d9534f;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: 0.3s;
-  }
-  
-  .clear-button:hover {
-    background-color: #c9302c;
-  }
-  
-  /* Карта */
-  .map-container {
-    width: 100%;
-    height: 500px;
-    border: 2px solid red;
-    background-color: lightgray;
-  }
-  
-  /* Заголовок таблицы */
-  .table-title {
-    margin-top: 10px;
-    font-size: 1.2rem;
-    font-weight: bold;
-  }
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Вся высота экрана */
+  padding: 16px;
+}
 
-  input[type="file"] {
-    display: inline-block;
+/* Верхний блок (заголовок + кнопки) */
+.import-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.import-title {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.import-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* Кнопка очистки */
+.clear-button {
+  padding: 8px 16px;
+  background-color: red;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.clear-button:hover {
+  background-color: darkred;
+}
+
+/* Контейнер карты */
+.map-container {
+  flex-shrink: 0;
+  height: 400px; /* Оставляем фиксированную высоту карты */
+  border: 2px solid gray;
+  margin-bottom: 12px;
+}
+
+/* Обертка таблицы */
+.table-wrapper {
+  flex-grow: 1; /* Занимает всю оставшуюся высоту */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Контейнер таблицы (теперь прокручивается только сама таблица, а не страница) */
+.table-container {
+  flex-grow: 1;
+  max-height: calc(100vh - 480px); /* Высота экрана минус высота шапки и карты */
+  overflow-y: auto; /* Включаем прокрутку */
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+/* Заголовок таблицы */
+.table-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
 }

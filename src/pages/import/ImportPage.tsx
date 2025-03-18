@@ -30,8 +30,9 @@ export const ImportPage = () => {
 
   return (
     <div className="import-container">
+      {/* Шапка с кнопками */}
       <div className="import-header">
-        <h1>Импорт</h1>
+        <h1 className="import-title">Импорт</h1>
         <div className="import-buttons">
           <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
           <button onClick={handleClearMap} className="clear-button">
@@ -40,12 +41,16 @@ export const ImportPage = () => {
         </div>
       </div>
 
+      {/* Карта */}
       <div className="map-container">
         <MapPreview geojsonData={parsedData || { type: "FeatureCollection", features: [] }} />
       </div>
 
-      <h2 className="table-title">Таблица данных</h2>
-      <FeatureTable geojsonData={parsedData} />
+      {/* Таблица */}
+      <div className="table-wrapper">
+        <h2 className="table-title">Таблица данных</h2>
+        <FeatureTable geojsonData={parsedData} />
+      </div>
     </div>
   );
 };

@@ -1,12 +1,14 @@
+/* Контейнер таблицы */
 .table-container {
-  max-height: 400px; /* Фиксированная высота таблицы */
-  overflow-y: auto; /* Вертикальная прокрутка */
+  flex-grow: 1; 
+  max-height: calc(100vh - 480px); 
+  overflow-y: auto; 
   border: 1px solid #aaa;
   border-radius: 8px;
   position: relative;
 }
 
-/* Фиксированный заголовок при прокрутке */
+/* Фиксированные заголовки при прокрутке */
 .feature-table thead {
   position: sticky;
   top: 0;
@@ -24,26 +26,42 @@
 /* Ячейки таблицы */
 .feature-table th,
 .feature-table td {
-  border: 1px solid #bbb; 
+  border: 1px solid #bbb;
   padding: 10px;
   text-align: left;
-  white-space: nowrap;
+  white-space: nowrap; /* Убирает перенос текста */
 }
 
-/* Заголовки */
+/* Заголовки таблицы */
 .feature-table th {
   background-color: #e0e0e0;
   font-weight: bold;
+  text-align: left;
 }
 
 /* Подсветка выбранной строки */
 .feature-table tr.selected {
   background-color: rgba(0, 0, 255, 0.2);
-  border-left: 4px solid blue; 
+  border-left: 4px solid blue;
 }
 
 /* Эффект при наведении */
 .feature-table tr:hover {
   background-color: rgba(0, 0, 255, 0.1);
   cursor: pointer;
+}
+
+/* Если таблица меньше контейнера, растягиваем на всю высоту */
+.feature-table tbody {
+  display: block;
+  overflow-y: auto;
+  max-height: calc(100vh - 500px); /* Динамический размер */
+}
+
+/* Фиксируем ширину заголовков, чтобы совпадали с tbody */
+.feature-table thead,
+.feature-table tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
 }

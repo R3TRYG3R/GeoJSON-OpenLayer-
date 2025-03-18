@@ -2,9 +2,9 @@ import { useState } from "react";
 import { parseFile } from "../FileParsing";
 
 const FILE_LIMITS = {
-  csv: 500 * 1024, // 500 KB
-  geojson: 1 * 1024 * 1024, // 1 MB
-  zip: 2 * 1024 * 1024, // 500 KB
+  csv: 50000 * 1024, 
+  geojson: 100 * 1024 * 1024, 
+  zip: 200 * 1024 * 1024, 
 };
 
 const getFileExtension = (filename: string) => filename.split(".").pop()?.toLowerCase();
