@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import { useMap } from "../../context/MapContext";
 import { Feature } from "ol";
 import { Geometry } from "ol/geom";
 import GeoJSON from "ol/format/GeoJSON";
@@ -11,18 +12,17 @@ interface FeatureTableProps {
 
 export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
+  const { zoomToFeature } = useMap();
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [isGeoJSON, setIsGeoJSON] = useState<boolean>(false);
+  const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const rowRefs = useRef<Map<string | number, HTMLTableRowElement | null>>(new Map());
 
   // 🔄 Обновляем ID выделенного объекта при клике
   useEffect(() => {
     if (selectedFeature) {
       let featureId = selectedFeature.getId();
-      console.log("🔍 Проверяем ID объекта:", featureId);
-
-      // 🛠 Проверка ID и назначение корректного значения
       const normalizedId =
         featureId !== undefined && featureId !== null
           ? typeof featureId === "string"
@@ -30,18 +30,17 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
             : featureId
           : null;
 
-      console.log("🟢 Выбран объект с ID:", normalizedId);
       setSelectedId(normalizedId);
 
-      // 🔄 Авто-скролл к выделенному объекту
       if (normalizedId !== null && rowRefs.current.has(normalizedId)) {
         rowRefs.current.get(normalizedId)?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
       }
+
+      zoomToFeature(selectedFeature);
     } else {
-      console.log("⚪ Нет выбранного объекта");
       setSelectedId(null);
     }
   }, [selectedFeature]);
@@ -57,18 +56,15 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     let dynamicColumns: string[] = [];
     const firstFeature = geojsonData.features[0];
 
-    // ✅ Определяем, является ли файл GeoJSON
     const isGeoJSONFormat =
       firstFeature.geometry && firstFeature.geometry.coordinates;
 
     setIsGeoJSON(!!isGeoJSONFormat);
 
-    // ✅ Берем только названия колонок из properties (для CSV и Shapefile)
     if (firstFeature.properties && Object.keys(firstFeature.properties).length > 0) {
       dynamicColumns = Object.keys(firstFeature.properties);
     }
 
-    // ✅ Добавляем id, если его нет в properties
     if (!dynamicColumns.includes("id")) {
       dynamicColumns.unshift("id");
     }
@@ -80,17 +76,51 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     setColumns(dynamicColumns);
   }, [geojsonData]);
 
-  // 🔹 Функция обработки клика по таблице (выделение на карте)
-  const handleRowClick = (featureData: any) => {
-    console.log("🔵 Выбран объект через таблицу:", featureData);
+  // 🛠 Функция измерения ширины текста
+  const measureTextWidth = (text: string, font = "14px Arial") => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return 0;
+    context.font = font;
+    return context.measureText(text).width + 16; // 16px – небольшой отступ
+  };
 
+  // 🔍 Вычисляем ширину колонок
+  useEffect(() => {
+    if (!geojsonData || !geojsonData.features?.length) return;
+
+    const newWidths: { [key: string]: number } = {};
+
+    columns.forEach((col) => {
+      let maxWidth = measureTextWidth(col); // Начинаем с ширины заголовка
+
+      geojsonData.features.forEach((feature: any) => {
+        const value =
+          col === "id"
+            ? feature.properties?.id ?? ""
+            : col === "coordinates" && isGeoJSON
+            ? JSON.stringify(feature.geometry.coordinates)
+            : feature.properties?.[col] ?? "";
+
+        const textWidth = measureTextWidth(String(value));
+        if (textWidth > maxWidth) {
+          maxWidth = textWidth;
+        }
+      });
+
+      newWidths[col] = maxWidth;
+    });
+
+    setColumnWidths(newWidths);
+  }, [geojsonData, columns]);
+
+  // 🔹 Функция обработки клика по таблице (выделение на карте + зум)
+  const handleRowClick = (featureData: any) => {
     let featureToSelect: Feature<Geometry> | null = null;
 
     if (featureData instanceof Feature) {
-      // ✅ Уже OpenLayers Feature
       featureToSelect = featureData;
     } else {
-      // ✅ Конвертируем в Feature вручную, если это GeoJSON
       try {
         const geojsonFormat = new GeoJSON();
         const convertedFeature = geojsonFormat.readFeature(featureData, {
@@ -98,17 +128,12 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         });
 
         if (convertedFeature instanceof Feature) {
-          // 🛠 Назначаем ID, если он отсутствует
           if (!convertedFeature.getId()) {
             const newId = featureData.properties?.id ?? Math.random();
             convertedFeature.setId(newId);
-            console.log("⚡ Назначен ID объекту:", newId);
           }
 
           featureToSelect = convertedFeature;
-          console.log("✅ Объект конвертирован в OpenLayers Feature:", featureToSelect);
-        } else {
-          console.warn("⚠️ readFeature вернул некорректный объект:", convertedFeature);
         }
       } catch (error) {
         console.error("❌ Ошибка конвертации объекта в Feature:", error);
@@ -116,10 +141,8 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     }
 
     if (featureToSelect) {
-      console.log("🔴 Устанавливаем выделенный объект:", featureToSelect);
       setSelectedFeature(featureToSelect);
-    } else {
-      console.warn("⚠️ Выбранный объект не удалось преобразовать в Feature");
+      zoomToFeature(featureToSelect);
     }
   };
 
@@ -133,7 +156,9 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         <thead>
           <tr>
             {columns.map((col) => (
-              <th key={col}>{col}</th>
+              <th key={col} style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}>
+                {col}
+              </th>
             ))}
           </tr>
         </thead>
@@ -154,7 +179,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                 onClick={() => handleRowClick(feature)}
               >
                 {columns.map((col) => (
-                  <td key={col}>
+                  <td key={col} style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}>
                     {col === "id"
                       ? featureId
                       : col === "coordinates" && isGeoJSON
