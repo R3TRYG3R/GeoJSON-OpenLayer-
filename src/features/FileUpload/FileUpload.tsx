@@ -1,63 +1,77 @@
 import { useState } from "react";
-import { parseFile } from "../FileParsing";
+import { parseCSV } from "../FileParsing/parseCSV";
+import { parseGeoJSON } from "../FileParsing/parseGeoJSON";
+import { parseShapefile } from "../FileParsing/parseShapefile";
 
-const FILE_LIMITS = {
-  csv: 50000 * 1024, 
-  geojson: 100 * 1024 * 1024, 
-  zip: 200 * 1024 * 1024, 
-};
-
-const getFileExtension = (filename: string) => filename.split(".").pop()?.toLowerCase();
-
-export const FileUpload = ({
-  onFileParsed,
-  inputRef, // ✅ Добавили ref
-}: {
+interface FileUploadProps {
   onFileParsed: (data: any) => void;
   inputRef: React.RefObject<HTMLInputElement>;
-}) => {
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+}
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+const FILE_LIMITS: Record<string, number> = {
+  csv: 50 * 1024 * 1024, // 50MB
+  json: 30 * 1024 * 1024,
+  geojson: 30 * 1024 * 1024,
+  zip: 50 * 1024 * 1024,
+};
+
+export const FileUpload: React.FC<FileUploadProps> = ({ onFileParsed, inputRef }) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    const ext = getFileExtension(file.name);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const limit = ext && FILE_LIMITS[ext];
+
     if (!ext || !(ext in FILE_LIMITS)) {
-      setError("CSV, GeoJSON or Shapefile.");
+      setError("Разрешены только файлы CSV, GeoJSON (.json, .geojson) или Shapefile (.zip)");
       return;
     }
 
-    if (file.size > FILE_LIMITS[ext as keyof typeof FILE_LIMITS]) {
-      setError(`Файл слишком большой, макс размер: ${FILE_LIMITS[ext as keyof typeof FILE_LIMITS] / 1024} KB.`);
+    if (typeof limit === "number" && file.size > limit)  {
+      setError(`Файл слишком большой. Максимальный размер: ${(limit! / 1024 / 1024).toFixed(1)}MB`);
       return;
     }
-
-    setError(null);
-    setLoading(true);
 
     try {
-      const parsedData = await parseFile(file);
-      onFileParsed(parsedData);
+      let parsedData = null;
+
+      if (ext === "csv") {
+        parsedData = await parseCSV(file);
+      } else if (ext === "json" || ext === "geojson") {
+        parsedData = await parseGeoJSON(file);
+      } else if (ext === "zip") {
+        parsedData = await parseShapefile(file);
+      }
+
+      if (parsedData) {
+        setError(null);
+        onFileParsed(parsedData);
+      } else {
+        setError("Не удалось прочитать файл.");
+      }
     } catch (err) {
-      setError("Не получилось прочитать файл.");
-    } finally {
-      setLoading(false);
+      console.error("❌ Ошибка при чтении файла:", err);
+      setError("Ошибка при чтении файла. Проверьте формат и структуру.");
     }
   };
 
   return (
-    <div className="flex flex-col items-center gap-2 p-4 border rounded-lg border-gray-600">
-      {/* ✅ Теперь inputRef привязан к input */}
-      <input type="file" onChange={handleFileChange} className="hidden" id="file-upload" ref={inputRef} />
-      <label
-        htmlFor="file-upload"
-        className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-      >
+    <div>
+      <label htmlFor="file-upload" className="upload-button">
+        Загрузить файл
       </label>
-      {loading && <p className="text-blue-500 text-sm">Файл загружается...</p>}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      <input
+        type="file"
+        id="file-upload"
+        ref={inputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept=".csv,.json,.geojson,.zip"
+      />
+      {error && <p className="error-message">{error}</p>}
     </div>
   );
 };
