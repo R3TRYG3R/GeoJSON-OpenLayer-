@@ -19,7 +19,6 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const rowRefs = useRef<Map<string | number, HTMLTableRowElement | null>>(new Map());
 
-  // 🔄 Обновляем ID выделенного объекта при клике
   useEffect(() => {
     if (selectedFeature) {
       let featureId = selectedFeature.getId();
@@ -45,7 +44,6 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     }
   }, [selectedFeature]);
 
-  // 🔄 Формируем динамические колонки
   useEffect(() => {
     if (!geojsonData || !geojsonData.features?.length) {
       setColumns([]);
@@ -76,23 +74,21 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     setColumns(dynamicColumns);
   }, [geojsonData]);
 
-  // 🛠 Функция измерения ширины текста
   const measureTextWidth = (text: string, font = "14px Arial") => {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     if (!context) return 0;
     context.font = font;
-    return context.measureText(text).width + 16; // 16px – небольшой отступ
+    return context.measureText(text).width + 16;
   };
 
-  // 🔍 Вычисляем ширину колонок
   useEffect(() => {
     if (!geojsonData || !geojsonData.features?.length) return;
 
     const newWidths: { [key: string]: number } = {};
 
     columns.forEach((col) => {
-      let maxWidth = measureTextWidth(col); // Начинаем с ширины заголовка
+      let maxWidth = measureTextWidth(col);
 
       geojsonData.features.forEach((feature: any) => {
         const value =
@@ -114,7 +110,6 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     setColumnWidths(newWidths);
   }, [geojsonData, columns]);
 
-  // 🔹 Функция обработки клика по таблице (выделение на карте + зум)
   const handleRowClick = (featureData: any) => {
     let featureToSelect: Feature<Geometry> | null = null;
 

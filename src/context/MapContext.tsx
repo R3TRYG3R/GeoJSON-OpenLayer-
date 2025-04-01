@@ -57,31 +57,36 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
     const geometry = feature.getGeometry();
     if (!geometry) return;
 
+    const type = geometry.getType();
     const extent = geometry.getExtent();
     const [minX, minY, maxX, maxY] = extent;
-    const extentSize = Math.max(maxX - minX, maxY - minY); // Размер объекта
-    const featureCenter = [(minX + maxX) / 2, (minY + maxY) / 2]; // Центр объекта
+    const extentSize = Math.max(maxX - minX, maxY - minY);
+    const center = [(minX + maxX) / 2, (minY + maxY) / 2];
 
     console.log("📏 Размер объекта:", extentSize);
 
-    let targetZoom = mapInstance.current.getView().getZoom() || 10; // Текущий зум
+    let targetZoom = mapInstance.current.getView().getZoom() || 10;
     const padding = [70, 70, 70, 70];
 
-    if (geometry.getType() === "Point") {
-      targetZoom = 14; // Ближе для точек
-    } else if (geometry.getType() === "Polygon" || geometry.getType() === "LineString") {
+    if (type === "Point") {
+      targetZoom = 14;
+    } else if (
+      type === "Polygon" ||
+      type === "LineString" ||
+      type === "MultiPolygon" ||
+      type === "MultiLineString"
+    ) {
       if (extentSize < 500) {
-        targetZoom = 16; // Маленькие полигоны и линии приближаем
-      } else if (extentSize > 5000) {
-        // Огромные полигоны **НЕ** меняем масштаб, просто центрируем
-        console.log("🛑 Полигон слишком большой, просто центрируем!");
+        targetZoom = 16;
+      } else if (extentSize > 50000) {
+        console.log("🛑 Объект слишком большой, просто центрируем!");
         mapInstance.current.getView().animate({
-          center: featureCenter,
+          center,
           duration: 800,
         });
         return;
       } else {
-        targetZoom = Math.min(targetZoom, 10); // Для средних размеров ограничиваем отдаление
+        targetZoom = Math.min(targetZoom, 10);
       }
     }
 
@@ -91,7 +96,7 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
       duration: 800,
     });
 
-    console.log(`🔍 Приближаем объект типа ${geometry.getType()}, зум: ${targetZoom}`);
+    console.log(`🔍 Приближаем объект типа ${type}, зум: ${targetZoom}`);
   };
 
   return (
