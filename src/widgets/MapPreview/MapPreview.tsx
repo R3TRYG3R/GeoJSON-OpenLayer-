@@ -22,14 +22,13 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
-    // ✅ Если данных НЕТ – очищаем карту, но НЕ удаляем контейнер
     if (!geojsonData || !geojsonData.features?.length) {
       console.log("🗑 Очищаем карту, сбрасываем на Азербайджан...");
       if (vectorLayerRef.current) {
         mapInstance.current.removeLayer(vectorLayerRef.current);
         vectorLayerRef.current = null;
       }
-      mapInstance.current?.getView()?.animate({
+      mapInstance.current.getView()?.animate({
         center: fromLonLat(AZERBAIJAN_CENTER),
         zoom: AZERBAIJAN_ZOOM,
         duration: 800,
@@ -40,20 +39,17 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
     console.log("📥 Загружаем данные на карту...", geojsonData);
 
     try {
-      // ✅ Принудительно добавляем ID, если его нет
       const features = new GeoJSON().readFeatures(geojsonData, {
         featureProjection: "EPSG:3857",
       });
 
       features.forEach((feature, index) => {
-        if (!feature.getId()) {
-          feature.setId(index + 1);
-        }
+        const rawId = feature.get("id") ?? index + 1;
+        feature.setId(rawId); // ✅ Устанавливаем id для корректной идентификации
       });
 
       const vectorSource = new Vector({ features });
 
-      // ✅ Стили
       const defaultStyle = new Style({
         stroke: new Stroke({ color: "blue", width: 2 }),
         fill: new Fill({ color: "rgba(0, 0, 255, 0.3)" }),
@@ -81,20 +77,15 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
       vectorLayerRef.current = vectorLayer;
       vectorSourceRef.current = vectorSource;
 
-      // ✅ Центрируем карту
       const extent = vectorSource.getExtent();
       if (extent && extent[0] !== Infinity) {
-        console.log("🔄 Центрируем карту на данных...");
-        mapInstance.current.getView()?.fit(extent, {
+        mapInstance.current.getView().fit(extent, {
           padding: [20, 20, 20, 20],
           maxZoom: 18,
           duration: 1000,
         });
-      } else {
-        console.warn("⚠️ Невозможно центрировать карту: пустой `extent`.");
       }
 
-      // ✅ Обработчик клика по объекту
       mapInstance.current.on("click", (event) => {
         let clickedFeature: Feature<Geometry> | null = null;
 
@@ -102,7 +93,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
           event.pixel,
           (featureLike) => {
             if (featureLike instanceof Feature) {
-              clickedFeature = featureLike as Feature<Geometry>;
+              clickedFeature = featureLike;
               return true;
             }
           },
@@ -110,10 +101,8 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
         );
 
         if (clickedFeature) {
-          console.log("✅ Выбран объект:", clickedFeature);
           setSelectedFeature(clickedFeature);
         } else {
-          console.log("🗑 Объект не выбран");
           setSelectedFeature(null);
         }
       });
@@ -122,10 +111,5 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
     }
   }, [geojsonData, isMapReady, selectedFeature]);
 
-  return (
-    <div
-      ref={mapRef}
-      className="map-container"
-    />
-  );
+  return <div ref={mapRef} className="map-container" />;
 };

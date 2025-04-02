@@ -1,6 +1,6 @@
 import shp from "shpjs";
 
-// Корректная декодировка Windows-1251 строк
+// Корректная декодировка Windows-1251
 const decodeWin1251 = (input: string): string => {
   try {
     const bytes = Uint8Array.from([...input].map((c) => c.charCodeAt(0)));
@@ -34,8 +34,8 @@ export const parseShapefile = async (file: File) => {
         }
 
         return {
-          ...feature,
-          id,
+          type: "Feature",
+          geometry: feature.geometry,
           properties: {
             id,
             ...decodedProps,
