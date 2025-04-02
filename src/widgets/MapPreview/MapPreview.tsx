@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import VectorLayer from "ol/layer/Vector";
-import Vector from "ol/source/Vector";
+import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
 import { fromLonLat } from "ol/proj";
 import { AZERBAIJAN_CENTER, AZERBAIJAN_ZOOM, useMap } from "../../context/MapContext";
@@ -16,19 +16,19 @@ interface MapPreviewProps {
 export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   const { mapRef, isMapReady, mapInstance } = useMap();
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
-  const vectorLayerRef = useRef<VectorLayer | null>(null);
-  const vectorSourceRef = useRef<Vector | null>(null);
+  const vectorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const vectorSourceRef = useRef<VectorSource | null>(null);
 
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
+    // 🔄 Очистка карты при отсутствии данных
     if (!geojsonData || !geojsonData.features?.length) {
-      console.log("🗑 Очищаем карту, сбрасываем на Азербайджан...");
       if (vectorLayerRef.current) {
         mapInstance.current.removeLayer(vectorLayerRef.current);
         vectorLayerRef.current = null;
       }
-      mapInstance.current.getView()?.animate({
+      mapInstance.current.getView().animate({
         center: fromLonLat(AZERBAIJAN_CENTER),
         zoom: AZERBAIJAN_ZOOM,
         duration: 800,
@@ -45,10 +45,10 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
 
       features.forEach((feature, index) => {
         const rawId = feature.get("id") ?? index + 1;
-        feature.setId(rawId); // ✅ Устанавливаем id для корректной идентификации
+        feature.setId(String(rawId));
       });
 
-      const vectorSource = new Vector({ features });
+      vectorSourceRef.current = new VectorSource({ features });
 
       const defaultStyle = new Style({
         stroke: new Stroke({ color: "blue", width: 2 }),
@@ -62,22 +62,24 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
         image: new CircleStyle({ radius: 6, fill: new Fill({ color: "red" }) }),
       });
 
-      const vectorLayer = new VectorLayer({
-        source: vectorSource,
+      vectorLayerRef.current = new VectorLayer({
+        source: vectorSourceRef.current,
         style: (feature) =>
-          selectedFeature && feature.getId() === selectedFeature.getId() ? selectedStyle : defaultStyle,
+          selectedFeature && String(feature.getId()) === String(selectedFeature.getId())
+            ? selectedStyle
+            : defaultStyle,
       });
 
       if (vectorLayerRef.current) {
-        mapInstance.current.removeLayer(vectorLayerRef.current);
-        console.log("🗑 Удалён предыдущий слой с полигонами");
+        mapInstance.current.getLayers().forEach((layer) => {
+          if (layer instanceof VectorLayer) {
+            mapInstance.current?.removeLayer(layer);
+          }
+        });
+        mapInstance.current.addLayer(vectorLayerRef.current);
       }
 
-      mapInstance.current.addLayer(vectorLayer);
-      vectorLayerRef.current = vectorLayer;
-      vectorSourceRef.current = vectorSource;
-
-      const extent = vectorSource.getExtent();
+      const extent = vectorSourceRef.current.getExtent();
       if (extent && extent[0] !== Infinity) {
         mapInstance.current.getView().fit(extent, {
           padding: [20, 20, 20, 20],

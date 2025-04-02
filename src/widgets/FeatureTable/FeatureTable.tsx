@@ -17,21 +17,16 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [isGeoJSON, setIsGeoJSON] = useState<boolean>(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
-  const rowRefs = useRef<Map<string | number, HTMLTableRowElement | null>>(new Map());
+  const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
   useEffect(() => {
     if (selectedFeature) {
-      let featureId = selectedFeature.getId();
-      const normalizedId =
-        featureId !== undefined && featureId !== null
-          ? typeof featureId === "string"
-            ? parseInt(featureId.replace(/\D/g, ""), 10) || featureId
-            : featureId
-          : null;
+      const featureId = selectedFeature.getId();
+      const normalizedId = featureId != null ? String(featureId) : null;
 
       setSelectedId(normalizedId);
 
-      if (normalizedId !== null && rowRefs.current.has(normalizedId)) {
+      if (normalizedId && rowRefs.current.has(normalizedId)) {
         rowRefs.current.get(normalizedId)?.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -123,11 +118,8 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         });
 
         if (convertedFeature instanceof Feature) {
-          if (!convertedFeature.getId()) {
-            const newId = featureData.properties?.id ?? Math.random();
-            convertedFeature.setId(newId);
-          }
-
+          const newId = featureData.properties?.id ?? Math.random();
+          convertedFeature.setId(String(newId));
           featureToSelect = convertedFeature;
         }
       } catch (error) {
@@ -159,16 +151,14 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         </thead>
         <tbody>
           {geojsonData.features.map((feature: any, index: number) => {
-            const isSelected = selectedId === feature.properties?.id;
-            const featureId = feature.properties?.id ?? index + 1;
+            const featureId = String(feature.properties?.id ?? index + 1);
+            const isSelected = String(selectedId) === featureId;
 
             return (
               <tr
-                key={index}
+                key={featureId}
                 ref={(el) => {
-                  if (el) {
-                    rowRefs.current.set(featureId, el);
-                  }
+                rowRefs.current.set(featureId, el);
                 }}
                 className={isSelected ? "selected" : ""}
                 onClick={() => handleRowClick(feature)}
