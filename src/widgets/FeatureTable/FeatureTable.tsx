@@ -4,6 +4,7 @@ import { useMap } from "../../context/MapContext";
 import { Feature } from "ol";
 import { Geometry } from "ol/geom";
 import GeoJSON from "ol/format/GeoJSON";
+import { EditFeature } from "../../features/DataEditing/EditFeature";
 import "./FeatureTable.css";
 
 interface FeatureTableProps {
@@ -17,10 +18,15 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [isGeoJSON, setIsGeoJSON] = useState<boolean>(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
+  const [editingCell, setEditingCell] = useState<{ rowId: string; column: string } | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
   useEffect(() => {
-    if (selectedFeature) {
+    if (
+      selectedFeature &&
+      typeof selectedFeature.getId === "function" &&
+      typeof selectedFeature.get === "function"
+    ) {
       const featureId = selectedFeature.getId();
       const normalizedId = featureId != null ? String(featureId) : null;
 
@@ -33,7 +39,10 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         });
       }
 
-      zoomToFeature(selectedFeature);
+      // 🧠 Если не редактируем — зумим
+      if (!editingCell) {
+        zoomToFeature(selectedFeature);
+      }
     } else {
       setSelectedId(null);
     }
@@ -46,12 +55,10 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
       return;
     }
 
-    let dynamicColumns: string[] = [];
     const firstFeature = geojsonData.features[0];
+    let dynamicColumns: string[] = [];
 
-    const isGeoJSONFormat =
-      firstFeature.geometry && firstFeature.geometry.coordinates;
-
+    const isGeoJSONFormat = firstFeature.geometry && firstFeature.geometry.coordinates;
     setIsGeoJSON(!!isGeoJSONFormat);
 
     if (firstFeature.properties && Object.keys(firstFeature.properties).length > 0) {
@@ -106,6 +113,8 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   }, [geojsonData, columns]);
 
   const handleRowClick = (featureData: any) => {
+    if (editingCell) return; // 🧯 Не обрабатываем клики во время редактирования
+
     let featureToSelect: Feature<Geometry> | null = null;
 
     if (featureData instanceof Feature) {
@@ -133,6 +142,15 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     }
   };
 
+  const handleEditChange = (
+    feature: any,
+    key: string,
+    value: string
+  ) => {
+    feature.properties[key] = value;
+    feature.set(key, value);
+  };
+
   if (!geojsonData || !geojsonData.features?.length) {
     return <p className="no-data">Нет данных</p>;
   }
@@ -158,18 +176,29 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
               <tr
                 key={featureId}
                 ref={(el) => {
-                rowRefs.current.set(featureId, el);
+                  if (el) rowRefs.current.set(featureId, el);
                 }}
                 className={isSelected ? "selected" : ""}
                 onClick={() => handleRowClick(feature)}
               >
                 {columns.map((col) => (
-                  <td key={col} style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}>
-                    {col === "id"
-                      ? featureId
-                      : col === "coordinates" && isGeoJSON
-                      ? JSON.stringify(feature.geometry.coordinates)
-                      : feature.properties?.[col] ?? ""}
+                  <td
+                    key={col}
+                    style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}
+                  >
+                    {col === "id" ? (
+                      featureId
+                    ) : col === "coordinates" && isGeoJSON ? (
+                      JSON.stringify(feature.geometry.coordinates)
+                    ) : isSelected ? (
+                      <EditFeature
+                        value={feature.properties?.[col] ?? ""}
+                        onChange={(val: string) => handleEditChange(feature, col, val)}
+                        onExit={() => setEditingCell(null)}
+                      />
+                    ) : (
+                      feature.properties?.[col] ?? ""
+                    )}
                   </td>
                 ))}
               </tr>
