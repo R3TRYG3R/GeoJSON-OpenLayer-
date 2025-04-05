@@ -29,7 +29,10 @@
   border: 1px solid #bbb;
   padding: 10px;
   text-align: left;
-  white-space: nowrap; /* Убирает перенос текста */
+  white-space: nowrap;
+  max-width: 200px; /* ✅ Ограничение ширины */
+  overflow: hidden; /* ✅ Прячем переполнение */
+  text-overflow: ellipsis; /* ✅ Показываем многоточие */
 }
 
 /* Заголовки таблицы */
@@ -64,4 +67,13 @@
   display: table;
   width: 100%;
   table-layout: fixed;
+}
+
+.feature-table td.edit-cell,
+.feature-table th.edit-cell {
+  width: 50px;
+  max-width: 50px;
+  min-width: 50px;
+  text-align: center;
+  padding: 0;
 }

@@ -4,9 +4,10 @@ interface EditFeatureProps {
   value: string;
   onChange: (value: string) => void;
   onExit: () => void;
+  ["data-column"]?: string;
 }
 
-export const EditFeature: React.FC<EditFeatureProps> = ({ value, onChange, onExit }) => {
+export const EditFeature: React.FC<EditFeatureProps> = ({ value, onChange, onExit, ...rest }) => {
   const [localValue, setLocalValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -17,8 +18,13 @@ export const EditFeature: React.FC<EditFeatureProps> = ({ value, onChange, onExi
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       onChange(localValue);
-      inputRef.current?.blur(); // 💡 Завершаем редактирование
+      inputRef.current?.blur(); // 🚪 Закрываем редактирование
     }
+  };
+
+  const handleBlur = () => {
+    onChange(localValue); // 💾 Сохраняем при потере фокуса
+    onExit();
   };
 
   return (
@@ -28,8 +34,9 @@ export const EditFeature: React.FC<EditFeatureProps> = ({ value, onChange, onExi
       value={localValue}
       onChange={(e) => setLocalValue(e.target.value)}
       onKeyDown={handleKeyDown}
-      onBlur={onExit} // 🔁 Сообщаем родителю о выходе
+      onBlur={handleBlur}
       style={{ padding: "4px", width: "100%" }}
+      {...rest} // 🔄 Прокидываем data-column
     />
   );
 };

@@ -18,7 +18,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [isGeoJSON, setIsGeoJSON] = useState<boolean>(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
-  const [editingCell, setEditingCell] = useState<{ rowId: string; column: string } | null>(null);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
   useEffect(() => {
@@ -39,8 +39,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
         });
       }
 
-      // 🧠 Если не редактируем — зумим
-      if (!editingCell) {
+      if (!editingRowId) {
         zoomToFeature(selectedFeature);
       }
     } else {
@@ -113,7 +112,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   }, [geojsonData, columns]);
 
   const handleRowClick = (featureData: any) => {
-    if (editingCell) return; // 🧯 Не обрабатываем клики во время редактирования
+    if (editingRowId) return;
 
     let featureToSelect: Feature<Geometry> | null = null;
 
@@ -142,6 +141,14 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
     }
   };
 
+  const toggleEdit = (rowId: string) => {
+    if (editingRowId === rowId) {
+      setEditingRowId(null); // 💾 Завершить редактирование
+    } else {
+      setEditingRowId(rowId); // ✏️ Начать редактирование
+    }
+  };
+
   const handleEditChange = (
     feature: any,
     key: string,
@@ -160,6 +167,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
       <table className="feature-table">
         <thead>
           <tr>
+            <th className="edit-cell"></th>
             {columns.map((col) => (
               <th key={col} style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}>
                 {col}
@@ -171,6 +179,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
           {geojsonData.features.map((feature: any, index: number) => {
             const featureId = String(feature.properties?.id ?? index + 1);
             const isSelected = String(selectedId) === featureId;
+            const isEditing = editingRowId === featureId;
 
             return (
               <tr
@@ -181,6 +190,17 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                 className={isSelected ? "selected" : ""}
                 onClick={() => handleRowClick(feature)}
               >
+                <td className="edit-cell">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleEdit(featureId);
+                    }}
+                    style={{ width: "30px" }}
+                  >
+                    {isEditing ? "💾" : "✏️"}
+                  </button>
+                </td>
                 {columns.map((col) => (
                   <td
                     key={col}
@@ -190,11 +210,11 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                       featureId
                     ) : col === "coordinates" && isGeoJSON ? (
                       JSON.stringify(feature.geometry.coordinates)
-                    ) : isSelected ? (
+                    ) : isEditing ? (
                       <EditFeature
                         value={feature.properties?.[col] ?? ""}
                         onChange={(val: string) => handleEditChange(feature, col, val)}
-                        onExit={() => setEditingCell(null)}
+                        onExit={() => {}}
                       />
                     ) : (
                       feature.properties?.[col] ?? ""
