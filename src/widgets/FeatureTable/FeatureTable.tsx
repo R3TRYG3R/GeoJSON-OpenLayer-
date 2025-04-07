@@ -5,13 +5,15 @@ import { Feature } from "ol";
 import { Geometry } from "ol/geom";
 import GeoJSON from "ol/format/GeoJSON";
 import { EditFeature } from "../../features/DataEditing/EditFeature";
+import { EditGeometryModal } from "../../features/DataEditing/EditGeometryModal";
 import "./FeatureTable.css";
 
 interface FeatureTableProps {
   geojsonData: any;
+  onUpdate: (updated: any) => void;
 }
 
-export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
+export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdate }) => {
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
   const { zoomToFeature } = useMap();
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
@@ -19,6 +21,8 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   const [isGeoJSON, setIsGeoJSON] = useState<boolean>(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalFeature, setModalFeature] = useState<Feature<Geometry> | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
   useEffect(() => {
@@ -96,7 +100,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
           col === "id"
             ? feature.properties?.id ?? ""
             : col === "coordinates" && isGeoJSON
-            ? JSON.stringify(feature.geometry.coordinates)
+            ? "Редактировать координаты"
             : feature.properties?.[col] ?? "";
 
         const textWidth = measureTextWidth(String(value));
@@ -125,10 +129,12 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
           featureProjection: "EPSG:3857",
         });
 
-        if (convertedFeature instanceof Feature) {
+        if (convertedFeature && convertedFeature instanceof Feature) {
           const newId = featureData.properties?.id ?? Math.random();
           convertedFeature.setId(String(newId));
           featureToSelect = convertedFeature;
+        } else {
+          console.error("❌ readFeature вернул недопустимый результат:", convertedFeature);
         }
       } catch (error) {
         console.error("❌ Ошибка конвертации объекта в Feature:", error);
@@ -142,20 +148,71 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
   };
 
   const toggleEdit = (rowId: string) => {
-    if (editingRowId === rowId) {
-      setEditingRowId(null); // 💾 Завершить редактирование
-    } else {
-      setEditingRowId(rowId); // ✏️ Начать редактирование
-    }
+    setEditingRowId(editingRowId === rowId ? null : rowId);
   };
 
-  const handleEditChange = (
-    feature: any,
-    key: string,
-    value: string
-  ) => {
+  const handleEditChange = (feature: any, key: string, value: string) => {
     feature.properties[key] = value;
     feature.set(key, value);
+  };
+
+  const handleGeometryUpdate = () => {
+    if (!modalFeature) return;
+  
+    const updated = {
+      ...geojsonData,
+      features: geojsonData.features.map((f: any) => {
+        const fId = String(f.properties?.id ?? "");
+        const modalId = String(modalFeature.getId());
+  
+        if (fId === modalId) {
+          const format = new GeoJSON();
+          const updatedFeature = format.writeFeatureObject(modalFeature, {
+            featureProjection: "EPSG:3857",
+            dataProjection: "EPSG:4326",
+          });
+  
+          return {
+            ...f,
+            geometry: updatedFeature.geometry,
+          };
+        }
+  
+        return f;
+      }),
+    };
+  
+    onUpdate(updated);
+  };
+
+  const handleOpenModal = (feature: any) => {
+    let finalFeature: Feature<Geometry> | null = null;
+
+    if (feature instanceof Feature) {
+      finalFeature = feature;
+    } else {
+      try {
+        const geojsonFormat = new GeoJSON();
+        const result = geojsonFormat.readFeature(feature, {
+          featureProjection: "EPSG:3857",
+        });
+
+        if (!result || !(result instanceof Feature)) {
+          console.error("❌ Ошибка: readFeature не вернул Feature");
+          return;
+        }
+
+        const id = feature.properties?.id ?? Math.random();
+        result.setId(String(id));
+        finalFeature = result;
+      } catch (error) {
+        console.error("❌ Не удалось конвертировать в Feature:", error);
+        return;
+      }
+    }
+
+    setModalFeature(finalFeature);
+    setModalOpen(true);
   };
 
   if (!geojsonData || !geojsonData.features?.length) {
@@ -209,7 +266,14 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
                     {col === "id" ? (
                       featureId
                     ) : col === "coordinates" && isGeoJSON ? (
-                      JSON.stringify(feature.geometry.coordinates)
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(feature);
+                        }}
+                      >
+                        Редактировать координаты
+                      </button>
                     ) : isEditing ? (
                       <EditFeature
                         value={feature.properties?.[col] ?? ""}
@@ -226,6 +290,15 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData }) => {
           })}
         </tbody>
       </table>
+
+      {modalFeature && (
+        <EditGeometryModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          feature={modalFeature}
+          onGeometryUpdate={handleGeometryUpdate}
+        />
+      )}
     </div>
   );
 };

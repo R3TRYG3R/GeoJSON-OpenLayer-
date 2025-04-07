@@ -49,7 +49,7 @@ export const ImportPage = () => {
       {/* Таблица */}
       <div className="table-wrapper">
         <h2 className="table-title">Таблица данных</h2>
-        <FeatureTable geojsonData={parsedData} />
+        <FeatureTable geojsonData={parsedData} onUpdate={setParsedData} />
       </div>
     </div>
   );
