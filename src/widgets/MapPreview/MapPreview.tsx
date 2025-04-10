@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
-import { fromLonLat } from "ol/proj";
+import { fromLonLat, toLonLat } from "ol/proj";
 import { AZERBAIJAN_CENTER, AZERBAIJAN_ZOOM, useMap } from "../../context/MapContext";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
 import Feature from "ol/Feature";
@@ -11,9 +11,11 @@ import { Style, Fill, Stroke, Circle as CircleStyle } from "ol/style";
 
 interface MapPreviewProps {
   geojsonData: any;
+  onAddFeature?: (lonLat: [number, number]) => void;
+  addMode?: boolean;
 }
 
-export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
+export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeature, addMode }) => {
   const { mapRef, isMapReady, mapInstance } = useMap();
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
   const vectorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
@@ -22,13 +24,16 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
+    const map = mapInstance.current;
+
     // 🔄 Очистка карты при отсутствии данных
     if (!geojsonData || !geojsonData.features?.length) {
       if (vectorLayerRef.current) {
-        mapInstance.current.removeLayer(vectorLayerRef.current);
+        map.removeLayer(vectorLayerRef.current);
         vectorLayerRef.current = null;
       }
-      mapInstance.current.getView().animate({
+
+      map.getView().animate({
         center: fromLonLat(AZERBAIJAN_CENTER),
         zoom: AZERBAIJAN_ZOOM,
         duration: 800,
@@ -70,28 +75,36 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
             : defaultStyle,
       });
 
-      if (vectorLayerRef.current) {
-        mapInstance.current.getLayers().forEach((layer) => {
-          if (layer instanceof VectorLayer) {
-            mapInstance.current?.removeLayer(layer);
-          }
-        });
-        mapInstance.current.addLayer(vectorLayerRef.current);
-      }
+      map.getLayers().forEach((layer) => {
+        if (layer instanceof VectorLayer) {
+          map.removeLayer(layer);
+        }
+      });
+
+      map.addLayer(vectorLayerRef.current);
 
       const extent = vectorSourceRef.current.getExtent();
       if (extent && extent[0] !== Infinity) {
-        mapInstance.current.getView().fit(extent, {
+        map.getView().fit(extent, {
           padding: [20, 20, 20, 20],
           maxZoom: 18,
           duration: 1000,
         });
       }
 
-      mapInstance.current.on("click", (event) => {
+      const handleClick = (event: any) => {
+        const coordinate = event.coordinate;
+
+        if (addMode && onAddFeature) {
+          const lonLat = toLonLat(coordinate);
+          console.log("🆕 Добавление новой точки по клику:", lonLat);
+          onAddFeature([lonLat[0], lonLat[1]]);
+          return;
+        }
+
         let clickedFeature: Feature<Geometry> | null = null;
 
-        mapInstance.current?.forEachFeatureAtPixel(
+        map.forEachFeatureAtPixel(
           event.pixel,
           (featureLike) => {
             if (featureLike instanceof Feature) {
@@ -107,11 +120,17 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData }) => {
         } else {
           setSelectedFeature(null);
         }
-      });
+      };
+
+      map.on("click", handleClick);
+
+      return () => {
+        map.un("click", handleClick); // 🧼 Чистим обработчик при размонтировании
+      };
     } catch (error) {
       console.error("❌ Ошибка загрузки GeoJSON:", error);
     }
-  }, [geojsonData, isMapReady, selectedFeature]);
+  }, [geojsonData, isMapReady, selectedFeature, addMode, onAddFeature]);
 
   return <div ref={mapRef} className="map-container" />;
 };
