@@ -5,28 +5,32 @@ import GeoJSON from "ol/format/GeoJSON";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { AZERBAIJAN_CENTER, AZERBAIJAN_ZOOM, useMap } from "../../context/MapContext";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import { useAddMode } from "../../context/AddModeContext";
 import Feature from "ol/Feature";
 import { Geometry } from "ol/geom";
+import Draw from "ol/interaction/Draw";
 import { Style, Fill, Stroke, Circle as CircleStyle } from "ol/style";
 
 interface MapPreviewProps {
   geojsonData: any;
-  onAddFeature?: (lonLat: [number, number]) => void;
-  addMode?: boolean;
+  onAddGeometry?: (coordinates: any) => void;
 }
 
-export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeature, addMode }) => {
+export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeometry }) => {
   const { mapRef, isMapReady, mapInstance } = useMap();
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
+  const { isAdding, selectedType, cancelAddMode } = useAddMode();
+
   const vectorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const vectorSourceRef = useRef<VectorSource | null>(null);
+  const drawRef = useRef<Draw | null>(null);
 
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
 
     const map = mapInstance.current;
 
-    // 🔄 Очистка карты при отсутствии данных
+    // Очистка карты
     if (!geojsonData || !geojsonData.features?.length) {
       if (vectorLayerRef.current) {
         map.removeLayer(vectorLayerRef.current);
@@ -40,8 +44,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeatur
       });
       return;
     }
-
-    console.log("📥 Загружаем данные на карту...", geojsonData);
 
     try {
       const features = new GeoJSON().readFeatures(geojsonData, {
@@ -75,6 +77,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeatur
             : defaultStyle,
       });
 
+      // Удаляем предыдущие векторные слои
       map.getLayers().forEach((layer) => {
         if (layer instanceof VectorLayer) {
           map.removeLayer(layer);
@@ -93,15 +96,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeatur
       }
 
       const handleClick = (event: any) => {
-        const coordinate = event.coordinate;
-
-        if (addMode && onAddFeature) {
-          const lonLat = toLonLat(coordinate);
-          console.log("🆕 Добавление новой точки по клику:", lonLat);
-          onAddFeature([lonLat[0], lonLat[1]]);
-          return;
-        }
-
         let clickedFeature: Feature<Geometry> | null = null;
 
         map.forEachFeatureAtPixel(
@@ -125,12 +119,63 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddFeatur
       map.on("click", handleClick);
 
       return () => {
-        map.un("click", handleClick); // 🧼 Чистим обработчик при размонтировании
+        map.un("click", handleClick);
       };
     } catch (error) {
       console.error("❌ Ошибка загрузки GeoJSON:", error);
     }
-  }, [geojsonData, isMapReady, selectedFeature, addMode, onAddFeature]);
+  }, [geojsonData, isMapReady, selectedFeature]);
+
+  useEffect(() => {
+    if (!isMapReady || !mapInstance.current || !vectorSourceRef.current) return;
+
+    const map = mapInstance.current;
+
+    // Удаляем предыдущий draw
+    if (drawRef.current) {
+      map.removeInteraction(drawRef.current);
+      drawRef.current = null;
+    }
+
+    if (isAdding && selectedType) {
+      const draw = new Draw({
+        source: vectorSourceRef.current,
+        type: selectedType,
+      });
+
+      draw.on("drawend", (e) => {
+        const geometry = e.feature.getGeometry() as any;
+        const type = geometry?.getType();
+
+        if (!geometry || type !== selectedType) {
+          console.warn("❌ Геометрия не создана или тип не совпадает");
+          return;
+        }
+
+        const coords = geometry.getCoordinates();
+
+        const convertCoords = (coord: any): any =>
+          typeof coord[0] === "number" ? toLonLat(coord) : coord.map(convertCoords);
+
+        const transformed = convertCoords(coords);
+
+        console.log("🆕 Добавлена геометрия:", transformed);
+
+        onAddGeometry?.(transformed);
+        cancelAddMode();
+      });
+
+      map.addInteraction(draw);
+      drawRef.current = draw;
+    }
+
+    return () => {
+      if (drawRef.current) {
+        mapInstance.current?.removeInteraction(drawRef.current);
+        drawRef.current = null;
+      }
+    };
+  }, [isAdding, selectedType, isMapReady]);
 
   return <div ref={mapRef} className="map-container" />;
 };

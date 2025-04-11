@@ -1,14 +1,22 @@
 import "./AddFeatureModal.css";
+import { GeometryType } from "../../context/AddModeContext";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  types: string[];
-  onAddPoint: () => void;
+  types: GeometryType[];
+  onSelect: (type: GeometryType) => void;
 }
 
-export const AddFeatureModal: React.FC<Props> = ({ isOpen, onClose, types, onAddPoint }) => {
+export const AddFeatureModal: React.FC<Props> = ({ isOpen, onClose, types, onSelect }) => {
   if (!isOpen) return null;
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value as GeometryType;
+    if (types.includes(value)) {
+      onSelect(value);
+    }
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -18,15 +26,12 @@ export const AddFeatureModal: React.FC<Props> = ({ isOpen, onClose, types, onAdd
         <label htmlFor="geom-select" style={{ fontSize: "14px", marginBottom: "8px" }}>
           Тип геометрии:
         </label>
+
         <select
           id="geom-select"
           style={{ width: "100%", padding: "8px", fontSize: "14px" }}
           defaultValue=""
-          onChange={(e) => {
-            if (e.target.value === "Point") {
-              onAddPoint();
-            }
-          }}
+          onChange={handleChange}
         >
           <option value="" disabled>
             Выберите тип

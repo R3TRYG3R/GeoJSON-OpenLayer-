@@ -3,18 +3,19 @@ import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
 import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
 import { AddFeatureModal } from "../../features/DataAdding/AddFeatureModal";
+import { useAddMode, GeometryType } from "../../context/AddModeContext";
 import "./ImportPage.css";
 
 export const ImportPage = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [addMode, setAddMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null!);
+  const { startAddMode } = useAddMode();
 
-  const geometryTypes = useMemo(() => {
-    const types = new Set<string>();
+  const geometryTypes = useMemo<GeometryType[]>(() => {
+    const types = new Set<GeometryType>();
     parsedData?.features?.forEach((f: any) => {
-      if (f.geometry?.type) types.add(f.geometry.type);
+      if (f.geometry?.type) types.add(f.geometry.type as GeometryType);
     });
     return Array.from(types);
   }, [parsedData]);
@@ -39,23 +40,18 @@ export const ImportPage = () => {
     }
   };
 
-  const handleAddPoint = () => {
-    setAddMode(true);       // Активируем режим добавления
-    setModalOpen(false);    // Закрываем модалку
-  };
-
-  const handleAddFeatureOnMapClick = (lonLat: [number, number]) => {
+  const handleAddGeometry = (coordinates: any) => {
     const newId = (parsedData?.features.length ?? 0) + 1;
 
     const newFeature = {
       type: "Feature",
       geometry: {
-        type: "Point",
-        coordinates: lonLat,
+        type: selectedGeometryType,
+        coordinates,
       },
       properties: {
         id: newId,
-        name: `New Point ${newId}`,
+        name: `New ${selectedGeometryType} ${newId}`,
       },
     };
 
@@ -65,7 +61,14 @@ export const ImportPage = () => {
     };
 
     setParsedData(updated);
-    setAddMode(false); // Выключаем режим добавления после одного клика
+  };
+
+  const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
+
+  const handleGeometryTypeSelect = (type: GeometryType) => {
+    setSelectedGeometryType(type);
+    setModalOpen(false);
+    startAddMode(type);
   };
 
   return (
@@ -94,8 +97,7 @@ export const ImportPage = () => {
       <div className="map-container">
         <MapPreview
           geojsonData={parsedData || { type: "FeatureCollection", features: [] }}
-          addMode={addMode}
-          onAddFeature={handleAddFeatureOnMapClick}
+          onAddGeometry={handleAddGeometry}
         />
       </div>
 
@@ -105,12 +107,12 @@ export const ImportPage = () => {
         <FeatureTable geojsonData={parsedData} onUpdate={setParsedData} />
       </div>
 
-      {/* Модальное окно выбора типа */}
+      {/* Модалка выбора типа геометрии */}
       <AddFeatureModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         types={geometryTypes}
-        onAddPoint={handleAddPoint}
+        onSelect={handleGeometryTypeSelect}
       />
     </div>
   );

@@ -1,3 +1,5 @@
+// 📁 context/MapContext.tsx
+
 import { View, Map } from "ol";
 import TileLayer from "ol/layer/Tile";
 import { fromLonLat } from "ol/proj";
@@ -57,13 +59,18 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
     const geometry = feature.getGeometry();
     if (!geometry) return;
 
-    const type = geometry.getType();
     const extent = geometry.getExtent();
+
+    // 🛡️ Защита от пустой или некорректной геометрии
+    if (!extent || extent.some((v) => !isFinite(v))) {
+      console.warn("⚠️ Невозможно зумировать на пустую или некорректную геометрию:", geometry);
+      return;
+    }
+
+    const type = geometry.getType();
     const [minX, minY, maxX, maxY] = extent;
     const extentSize = Math.max(maxX - minX, maxY - minY);
     const center = [(minX + maxX) / 2, (minY + maxY) / 2];
-
-    console.log("📏 Размер объекта:", extentSize);
 
     let targetZoom = mapInstance.current.getView().getZoom() || 10;
     const padding = [70, 70, 70, 70];
@@ -79,7 +86,6 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
       if (extentSize < 500) {
         targetZoom = 16;
       } else if (extentSize > 50000) {
-        console.log("🛑 Объект слишком большой, просто центрируем!");
         mapInstance.current.getView().animate({
           center,
           duration: 800,
@@ -109,7 +115,7 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
 export const useMap = () => {
   const context = useContext(MapContext);
   if (!context) {
-    throw new Error("MapProvider!!!");
+    throw new Error("MapProvider должен быть обёрнут вокруг компонентов!");
   }
   return context;
 };

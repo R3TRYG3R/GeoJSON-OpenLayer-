@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-type GeometryType = "Point" | "LineString" | "Polygon" | "MultiPolygon" | "MultiLineString" | null;
+// ✅ Экспортируемый тип геометрии
+export type GeometryType = "Point" | "LineString" | "Polygon" | "MultiPolygon" | "MultiLineString";
 
 interface AddModeContextType {
   isAdding: boolean;
-  selectedType: GeometryType;
+  selectedType: GeometryType | null;
   startAddMode: (type: GeometryType) => void;
   cancelAddMode: () => void;
 }
@@ -13,7 +14,7 @@ const AddModeContext = createContext<AddModeContextType | null>(null);
 
 export const AddModeProvider = ({ children }: { children: ReactNode }) => {
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedType, setSelectedType] = useState<GeometryType>(null);
+  const [selectedType, setSelectedType] = useState<GeometryType | null>(null);
 
   const startAddMode = (type: GeometryType) => {
     setSelectedType(type);
