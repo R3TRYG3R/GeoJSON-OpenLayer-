@@ -4,6 +4,11 @@ import { MapPreview } from "../../widgets/MapPreview/MapPreview";
 import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
 import { AddFeatureModal } from "../../features/DataAdding/AddFeatureModal";
 import { useAddMode, GeometryType } from "../../context/AddModeContext";
+import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import { useMap } from "../../context/MapContext";
+import GeoJSON from "ol/format/GeoJSON";
+import Feature from "ol/Feature";
+import { Geometry } from "ol/geom";
 import "./ImportPage.css";
 
 export const ImportPage = () => {
@@ -11,6 +16,8 @@ export const ImportPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null!);
   const { startAddMode } = useAddMode();
+  const { setSelectedFeature } = useSelectedFeature(); // 👈 для выделения
+  const { zoomToFeature } = useMap(); // 👈 для приближения
 
   const geometryTypes = useMemo<GeometryType[]>(() => {
     const types = new Set<GeometryType>();
@@ -43,7 +50,7 @@ export const ImportPage = () => {
   const handleAddGeometry = (coordinates: any) => {
     const newId = (parsedData?.features.length ?? 0) + 1;
 
-    const newFeature = {
+    const newFeatureGeoJSON = {
       type: "Feature",
       geometry: {
         type: selectedGeometryType,
@@ -57,10 +64,22 @@ export const ImportPage = () => {
 
     const updated = {
       ...parsedData,
-      features: [...(parsedData?.features || []), newFeature],
+      features: [...(parsedData?.features || []), newFeatureGeoJSON],
     };
 
     setParsedData(updated);
+
+    // ✅ Сразу выделяем и приближаем
+    setTimeout(() => {
+      const format = new GeoJSON();
+      const feature = format.readFeature(newFeatureGeoJSON, {
+        featureProjection: "EPSG:3857",
+      }) as Feature<Geometry>;
+      feature.setId(String(newId));
+
+      setSelectedFeature(feature); // 👈 выделение
+      zoomToFeature(feature);      // 👈 зум
+    }, 0); // 👈 даём React время обновить setParsedData
   };
 
   const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
