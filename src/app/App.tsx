@@ -1,6 +1,7 @@
 import { MapProvider } from "../context/MapContext";
 import { SelectedFeatureProvider } from "../context/SelectedFeatureContext";
 import { AddModeProvider } from "../context/AddModeContext";
+import { MoveModeProvider } from "../context/MoveModeContext"; // 👈 NEW
 import { ImportPage } from "../pages/import/ImportPage";
 
 function App() {
@@ -8,7 +9,9 @@ function App() {
     <MapProvider>
       <SelectedFeatureProvider>
         <AddModeProvider>
-          <ImportPage />
+          <MoveModeProvider> {/* 👈 Обернули */}
+            <ImportPage />
+          </MoveModeProvider>
         </AddModeProvider>
       </SelectedFeatureProvider>
     </MapProvider>

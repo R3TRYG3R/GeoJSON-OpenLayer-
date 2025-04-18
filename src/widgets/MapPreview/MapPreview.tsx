@@ -6,6 +6,7 @@ import { fromLonLat, toLonLat } from "ol/proj";
 import { AZERBAIJAN_CENTER, AZERBAIJAN_ZOOM, useMap } from "../../context/MapContext";
 import { useSelectedFeature } from "../../context/SelectedFeatureContext";
 import { useAddMode } from "../../context/AddModeContext";
+import { useMoveMode } from "../../context/MoveModeContext"; // 👈 NEW
 import Feature from "ol/Feature";
 import { Geometry } from "ol/geom";
 import Draw from "ol/interaction/Draw";
@@ -20,6 +21,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeomet
   const { mapRef, isMapReady, mapInstance } = useMap();
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
   const { isAdding, selectedType, cancelAddMode } = useAddMode();
+  const { isMoving, finishMoveMode } = useMoveMode(); // 👈 NEW
 
   const vectorLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const vectorSourceRef = useRef<VectorSource | null>(null);
@@ -30,7 +32,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeomet
 
     const map = mapInstance.current;
 
-    // Очистка карты
     if (!geojsonData || !geojsonData.features?.length) {
       if (vectorLayerRef.current) {
         map.removeLayer(vectorLayerRef.current);
@@ -77,7 +78,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeomet
             : defaultStyle,
       });
 
-      // Удаляем предыдущие векторные слои
       map.getLayers().forEach((layer) => {
         if (layer instanceof VectorLayer) {
           map.removeLayer(layer);
@@ -96,10 +96,19 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeomet
       }
 
       const handleClick = (event: any) => {
+        const pixel = event.pixel;
+        const coord = map.getCoordinateFromPixel(pixel);
+
+        if (isMoving) {
+          console.log("📍 Новая координата для перемещения:", toLonLat(coord));
+          finishMoveMode(coord);
+          return;
+        }
+
         let clickedFeature: Feature<Geometry> | null = null;
 
         map.forEachFeatureAtPixel(
-          event.pixel,
+          pixel,
           (featureLike) => {
             if (featureLike instanceof Feature) {
               clickedFeature = featureLike;
@@ -117,21 +126,17 @@ export const MapPreview: React.FC<MapPreviewProps> = ({ geojsonData, onAddGeomet
       };
 
       map.on("click", handleClick);
-
-      return () => {
-        map.un("click", handleClick);
-      };
+      return () => map.un("click", handleClick);
     } catch (error) {
       console.error("❌ Ошибка загрузки GeoJSON:", error);
     }
-  }, [geojsonData, isMapReady, selectedFeature]);
+  }, [geojsonData, isMapReady, selectedFeature, isMoving]);
 
   useEffect(() => {
     if (!isMapReady || !mapInstance.current || !vectorSourceRef.current) return;
 
     const map = mapInstance.current;
 
-    // Удаляем предыдущий draw
     if (drawRef.current) {
       map.removeInteraction(drawRef.current);
       drawRef.current = null;

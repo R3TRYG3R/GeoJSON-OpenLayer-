@@ -25,31 +25,35 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
   const [modalFeature, setModalFeature] = useState<Feature<Geometry> | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
+  // ✅ Главное исправление: предотвращаем бесконечный цикл
   useEffect(() => {
     if (
       selectedFeature &&
-      typeof selectedFeature.getId === "function" &&
-      typeof selectedFeature.get === "function"
+      typeof selectedFeature.getId === "function"
     ) {
       const featureId = selectedFeature.getId();
-      const normalizedId = featureId != null ? String(featureId) : null;
-
-      setSelectedId(normalizedId);
-
-      if (normalizedId && rowRefs.current.has(normalizedId)) {
-        rowRefs.current.get(normalizedId)?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
-
-      if (!editingRowId) {
-        zoomToFeature(selectedFeature);
-      }
+      setSelectedId(featureId != null ? String(featureId) : null);
     } else {
       setSelectedId(null);
     }
   }, [selectedFeature]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+  
+    const id = String(selectedId); // Явное приведение
+  
+    if (rowRefs.current.has(id)) {
+      rowRefs.current.get(id)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  
+    if (!editingRowId && selectedFeature) {
+      zoomToFeature(selectedFeature);
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     if (!geojsonData || !geojsonData.features?.length) {
@@ -158,30 +162,30 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
 
   const handleGeometryUpdate = () => {
     if (!modalFeature) return;
-  
+
     const updated = {
       ...geojsonData,
       features: geojsonData.features.map((f: any) => {
         const fId = String(f.properties?.id ?? "");
         const modalId = String(modalFeature.getId());
-  
+
         if (fId === modalId) {
           const format = new GeoJSON();
           const updatedFeature = format.writeFeatureObject(modalFeature, {
             featureProjection: "EPSG:3857",
             dataProjection: "EPSG:4326",
           });
-  
+
           return {
             ...f,
             geometry: updatedFeature.geometry,
           };
         }
-  
+
         return f;
       }),
     };
-  
+
     onUpdate(updated);
   };
 
@@ -226,7 +230,12 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
           <tr>
             <th className="edit-cell"></th>
             {columns.map((col) => (
-              <th key={col} style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}>
+              <th
+                key={col}
+                style={{
+                  width: columnWidths[col] ? `${columnWidths[col]}px` : "auto",
+                }}
+              >
                 {col}
               </th>
             ))}
@@ -261,7 +270,9 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
                 {columns.map((col) => (
                   <td
                     key={col}
-                    style={{ width: columnWidths[col] ? `${columnWidths[col]}px` : "auto" }}
+                    style={{
+                      width: columnWidths[col] ? `${columnWidths[col]}px` : "auto",
+                    }}
                   >
                     {col === "id" ? (
                       featureId

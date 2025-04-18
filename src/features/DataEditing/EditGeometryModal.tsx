@@ -9,6 +9,7 @@ import {
   Geometry,
 } from "ol/geom";
 import { toLonLat, fromLonLat } from "ol/proj";
+import { useMoveMode } from "../../context/MoveModeContext"; // 👈 добавлено
 
 interface Props {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export const EditGeometryModal: React.FC<Props> = ({ isOpen, onClose, feature, o
   const geometryType = geometry?.getType();
   const [coordsText, setCoordsText] = useState("");
   const [error, setError] = useState("");
+
+  const { startMoveMode } = useMoveMode(); // 👈 добавлено
 
   useEffect(() => {
     if (isOpen && geometry && geometryType) {
@@ -73,6 +76,17 @@ export const EditGeometryModal: React.FC<Props> = ({ isOpen, onClose, feature, o
         <div className="modal-buttons">
           <button onClick={applyCoordinates} className="btn-save">Сохранить</button>
           <button onClick={onClose} className="btn-cancel">Отмена</button>
+          {geometryType === "Point" && (
+            <button
+              onClick={() => {
+                startMoveMode(feature);
+                onClose();
+              }}
+              className="btn-move"
+            >
+              📍 Переместить
+            </button>
+          )}
         </div>
       </div>
     </div>
