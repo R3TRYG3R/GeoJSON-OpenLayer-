@@ -30,9 +30,9 @@
   padding: 10px;
   text-align: left;
   white-space: nowrap;
-  max-width: 200px; /* ✅ Ограничение ширины */
-  overflow: hidden; /* ✅ Прячем переполнение */
-  text-overflow: ellipsis; /* ✅ Показываем многоточие */
+  max-width: 200px; /* Ограничение ширины */
+  overflow: hidden; /* Прячем переполнение */
+  text-overflow: ellipsis; /* Показываем многоточие */
 }
 
 /* Заголовки таблицы */

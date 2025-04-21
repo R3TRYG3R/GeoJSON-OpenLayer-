@@ -1,27 +1,29 @@
-import { useRef, useState, useMemo, useEffect } from "react";
+// src/pages/import/ImportPage.tsx
+import React, { useRef, useState, useMemo } from "react";
+import GeoJSON from "ol/format/GeoJSON";
+import Feature from "ol/Feature";
+import { Geometry } from "ol/geom";
+import { useMap } from "../../context/MapContext";
+import { useSelectedFeature } from "../../context/SelectedFeatureContext";
+import { useAddMode, GeometryType } from "../../context/AddModeContext";
+import { useMoveMode } from "../../context/MoveModeContext";
 import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
 import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
 import { AddFeatureModal } from "../../features/DataAdding/AddFeatureModal";
-import { useAddMode, GeometryType } from "../../context/AddModeContext";
-import { useSelectedFeature } from "../../context/SelectedFeatureContext";
-import { useMap } from "../../context/MapContext";
-import { useMoveMode } from "../../context/MoveModeContext";
-import GeoJSON from "ol/format/GeoJSON";
-import Feature from "ol/Feature";
-import { Geometry } from "ol/geom";
 import "./ImportPage.css";
 
-export const ImportPage = () => {
+export const ImportPage: React.FC = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null!);
 
-  const { startAddMode } = useAddMode();
   const { setSelectedFeature } = useSelectedFeature();
+  const { startAddMode } = useAddMode();
   const { zoomToFeature } = useMap();
   const { movingFeature } = useMoveMode();
 
+  const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
   const geometryTypes = useMemo<GeometryType[]>(() => {
     const types = new Set<GeometryType>();
     parsedData?.features?.forEach((f: any) => {
@@ -30,95 +32,76 @@ export const ImportPage = () => {
     return Array.from(types);
   }, [parsedData]);
 
+  // Парсим файл
   const handleFileParsed = (data: any) => {
-    try {
-      if (!data || !data.features || !Array.isArray(data.features)) {
-        throw new Error("❌ Некорректный формат данных. Ожидался GeoJSON.");
-      }
-      console.log("📥 Данные переданы в ImportPage:", data);
-      setParsedData(data);
-    } catch (error) {
-      console.error("❌ Ошибка при обработке данных в ImportPage:", error);
-    }
+    console.log("📥 Данные переданы в ImportPage:", data);
+    setParsedData(data);
   };
 
+  // Очищаем карту и сбрасываем ввод
   const handleClearMap = () => {
-    console.log("🗑 Очищаем карту и сбрасываем данные...");
     setParsedData(null);
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleAddGeometry = (coordinates: any) => {
+  // Добавление новой геометрии
+  const handleAddGeometry = (coords: any) => {
     const newId = (parsedData?.features.length ?? 0) + 1;
-
-    const newFeatureGeoJSON = {
+    const newFeat = {
       type: "Feature",
-      geometry: {
-        type: selectedGeometryType,
-        coordinates,
-      },
-      properties: {
-        id: newId,
-        name: `New ${selectedGeometryType} ${newId}`,
-      },
+      geometry: { type: selectedGeometryType, coordinates: coords },
+      properties: { id: newId, name: `New ${selectedGeometryType} ${newId}` },
     };
-
-    const updated = {
-      ...parsedData,
-      features: [...(parsedData?.features || []), newFeatureGeoJSON],
-    };
-
-    setParsedData(updated);
-
+    setParsedData({
+      ...parsedData!,
+      features: [...parsedData!.features, newFeat],
+    });
+    // Сразу выделяем и зумим
     setTimeout(() => {
-      const format = new GeoJSON();
-      const feature = format.readFeature(newFeatureGeoJSON, {
+      const feat = new GeoJSON().readFeature(newFeat, {
         featureProjection: "EPSG:3857",
       }) as Feature<Geometry>;
-      feature.setId(String(newId));
-
-      setSelectedFeature(feature);
-      zoomToFeature(feature);
+      feat.setId(String(newId));
+      setSelectedFeature(feat);
+      zoomToFeature(feat);
     }, 0);
   };
 
-  const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
+  // Обработка перемещения существующей точки
+  const handleMoveFeature = (id: string, coords: [number, number]) => {
+    if (!parsedData) return;
+    const updated = {
+      ...parsedData,
+      features: parsedData.features.map((f: any) => {
+        const fid = String(f.properties?.id ?? f.id);
+        if (fid === id) {
+          return {
+            ...f,
+            geometry: { type: "Point", coordinates: coords },
+            properties: {
+              ...f.properties,
+              longitude: coords[0],
+              latitude: coords[1],
+            },
+          };
+        }
+        return f;
+      }),
+    };
+    setParsedData(updated);
+    // После обновления снова выделяем и зумим на тот же OL‑Feature
+    if (movingFeature) {
+      setSelectedFeature(movingFeature);
+      zoomToFeature(movingFeature);
+    }
+  };
 
+  // Запуск режима добавления
   const handleGeometryTypeSelect = (type: GeometryType) => {
     setSelectedGeometryType(type);
     setModalOpen(false);
     startAddMode(type);
   };
-
-  // ✅ Обновляем GeoJSON после перемещения точки
-  useEffect(() => {
-    if (!parsedData || !movingFeature) return;
-
-    const geometry = movingFeature.getGeometry();
-    if (!geometry || geometry.getType() !== "Point") return;
-
-    const movedId = movingFeature.getId();
-    const format = new GeoJSON();
-    const newGeom = format.writeGeometryObject(geometry, {
-      featureProjection: "EPSG:3857",
-      dataProjection: "EPSG:4326",
-    });
-
-    const updated = {
-      ...parsedData,
-      features: parsedData.features.map((f: any) => {
-        const fid = f.properties?.id ?? f.id;
-        if (String(fid) === String(movedId)) {
-          return { ...f, geometry: newGeom };
-        }
-        return f;
-      }),
-    };
-
-    setParsedData(updated);
-  }, [parsedData, movingFeature]);
 
   return (
     <div className="import-container">
@@ -143,6 +126,7 @@ export const ImportPage = () => {
         <MapPreview
           geojsonData={parsedData || { type: "FeatureCollection", features: [] }}
           onAddGeometry={handleAddGeometry}
+          onMoveFeature={handleMoveFeature}
         />
       </div>
 
