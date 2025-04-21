@@ -67,7 +67,7 @@ export const EditGeometryModal: React.FC<Props> = ({ isOpen, onClose, feature, o
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-window" onClick={(e) => e.stopPropagation()}>
         <h2>Редактирование координат</h2>
         <p className="geom-type">Тип геометрии: <b>{geometryType}</b></p>

@@ -1,0 +1,32 @@
+.modal-window.large.horizontal {
+    display: flex;
+    flex-direction: column;
+    width: 1000px;
+    max-width: 98%;
+  }
+  
+  .horizontal-content {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  
+  .coords-view {
+    width: 50%;
+    min-height: 400px;
+    resize: vertical;
+    font-family: monospace;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: #f8f8f8;
+    font-size: 13px;
+    white-space: pre-wrap;
+  }
+  
+  .geometry-edit-map {
+    flex-grow: 1;
+    height: 400px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+  }

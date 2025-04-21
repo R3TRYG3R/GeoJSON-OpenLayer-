@@ -6,6 +6,7 @@ import { Geometry } from "ol/geom";
 import GeoJSON from "ol/format/GeoJSON";
 import { EditFeature } from "../../features/DataEditing/EditFeature";
 import { EditGeometryModal } from "../../features/DataEditing/EditGeometryModal";
+import { EditGeometryMapModal } from "../../features/DataEditing/EditGeometryMapModal"; // ✅ новый модал
 import "./FeatureTable.css";
 
 interface FeatureTableProps {
@@ -25,14 +26,10 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
   const [modalFeature, setModalFeature] = useState<Feature<Geometry> | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
 
-  // ✅ Главное исправление: предотвращаем бесконечный цикл
   useEffect(() => {
-    if (
-      selectedFeature &&
-      typeof selectedFeature.getId === "function"
-    ) {
-      const featureId = selectedFeature.getId();
-      setSelectedId(featureId != null ? String(featureId) : null);
+    if (selectedFeature?.getId) {
+      const id = selectedFeature.getId();
+      setSelectedId(id != null ? String(id) : null);
     } else {
       setSelectedId(null);
     }
@@ -40,16 +37,13 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
 
   useEffect(() => {
     if (!selectedId) return;
-  
-    const id = String(selectedId); // Явное приведение
-  
-    if (rowRefs.current.has(id)) {
-      rowRefs.current.get(id)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+
+    const id = String(selectedId);
+    const row = rowRefs.current.get(id);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  
+
     if (!editingRowId && selectedFeature) {
       zoomToFeature(selectedFeature);
     }
@@ -83,21 +77,18 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
     setColumns(dynamicColumns);
   }, [geojsonData]);
 
-  const measureTextWidth = (text: string, font = "14px Arial") => {
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    if (!context) return 0;
-    context.font = font;
-    return context.measureText(text).width + 16;
-  };
-
   useEffect(() => {
     if (!geojsonData || !geojsonData.features?.length) return;
 
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.font = "14px Arial";
     const newWidths: { [key: string]: number } = {};
 
     columns.forEach((col) => {
-      let maxWidth = measureTextWidth(col);
+      let maxWidth = context.measureText(col).width + 16;
 
       geojsonData.features.forEach((feature: any) => {
         const value =
@@ -107,7 +98,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
             ? "Редактировать координаты"
             : feature.properties?.[col] ?? "";
 
-        const textWidth = measureTextWidth(String(value));
+        const textWidth = context.measureText(String(value)).width + 16;
         if (textWidth > maxWidth) {
           maxWidth = textWidth;
         }
@@ -118,6 +109,15 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
 
     setColumnWidths(newWidths);
   }, [geojsonData, columns]);
+
+  const toggleEdit = (rowId: string) => {
+    setEditingRowId(editingRowId === rowId ? null : rowId);
+  };
+
+  const handleEditChange = (feature: any, key: string, value: string) => {
+    feature.properties[key] = value;
+    feature.set(key, value);
+  };
 
   const handleRowClick = (featureData: any) => {
     if (editingRowId) return;
@@ -137,11 +137,9 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
           const newId = featureData.properties?.id ?? Math.random();
           convertedFeature.setId(String(newId));
           featureToSelect = convertedFeature;
-        } else {
-          console.error("❌ readFeature вернул недопустимый результат:", convertedFeature);
         }
       } catch (error) {
-        console.error("❌ Ошибка конвертации объекта в Feature:", error);
+        console.error("❌ Ошибка при конвертации объекта в Feature:", error);
       }
     }
 
@@ -151,13 +149,26 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
     }
   };
 
-  const toggleEdit = (rowId: string) => {
-    setEditingRowId(editingRowId === rowId ? null : rowId);
-  };
-
-  const handleEditChange = (feature: any, key: string, value: string) => {
-    feature.properties[key] = value;
-    feature.set(key, value);
+  const handleOpenModal = (feature: any) => {
+    try {
+      const geojsonFormat = new GeoJSON();
+      const result = geojsonFormat.readFeature(feature, {
+        featureProjection: "EPSG:3857",
+      });
+  
+      if (!result || Array.isArray(result)) {
+        console.error("❌ readFeature вернул массив или null, ожидался одиночный Feature");
+        return;
+      }
+  
+      const id = feature.properties?.id ?? Math.random();
+      result.setId(String(id));
+  
+      setModalFeature(result);
+      setModalOpen(true);
+    } catch (error) {
+      console.error("❌ Не удалось прочитать Feature:", error);
+    }
   };
 
   const handleGeometryUpdate = () => {
@@ -189,34 +200,29 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
     onUpdate(updated);
   };
 
-  const handleOpenModal = (feature: any) => {
-    let finalFeature: Feature<Geometry> | null = null;
+  const handleUpdatedFeature = (updatedFeature: Feature<Geometry>) => {
+    const updated = {
+      ...geojsonData,
+      features: geojsonData.features.map((f: any) => {
+        const fId = String(f.properties?.id ?? f.id);
+        const updId = String(updatedFeature.getId());
+        if (fId === updId) {
+          const format = new GeoJSON();
+          const updatedObj = format.writeFeatureObject(updatedFeature, {
+            featureProjection: "EPSG:3857",
+            dataProjection: "EPSG:4326",
+          });
 
-    if (feature instanceof Feature) {
-      finalFeature = feature;
-    } else {
-      try {
-        const geojsonFormat = new GeoJSON();
-        const result = geojsonFormat.readFeature(feature, {
-          featureProjection: "EPSG:3857",
-        });
-
-        if (!result || !(result instanceof Feature)) {
-          console.error("❌ Ошибка: readFeature не вернул Feature");
-          return;
+          return {
+            ...f,
+            geometry: updatedObj.geometry,
+          };
         }
+        return f;
+      }),
+    };
 
-        const id = feature.properties?.id ?? Math.random();
-        result.setId(String(id));
-        finalFeature = result;
-      } catch (error) {
-        console.error("❌ Не удалось конвертировать в Feature:", error);
-        return;
-      }
-    }
-
-    setModalFeature(finalFeature);
-    setModalOpen(true);
+    onUpdate(updated);
   };
 
   if (!geojsonData || !geojsonData.features?.length) {
@@ -262,7 +268,6 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
                       e.stopPropagation();
                       toggleEdit(featureId);
                     }}
-                    style={{ width: "30px" }}
                   >
                     {isEditing ? "💾" : "✏️"}
                   </button>
@@ -302,13 +307,23 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
         </tbody>
       </table>
 
-      {modalFeature && (
-        <EditGeometryModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          feature={modalFeature}
-          onGeometryUpdate={handleGeometryUpdate}
-        />
+      {/* 🧠 Модальные окна в зависимости от типа */}
+      {modalFeature && modalOpen && (
+        modalFeature.getGeometry()?.getType() === "Point" ? (
+          <EditGeometryModal
+            isOpen={modalOpen}
+            onClose={() => setModalOpen(false)}
+            feature={modalFeature}
+            onGeometryUpdate={handleGeometryUpdate}
+          />
+        ) : (
+          <EditGeometryMapModal
+            isOpen={modalOpen}
+            onClose={() => setModalOpen(false)}
+            feature={modalFeature}
+            onSave={handleUpdatedFeature}
+          />
+        )
       )}
     </div>
   );
