@@ -5,7 +5,7 @@ import { Vector as VectorLayer } from "ol/layer";
 import { Vector as VectorSource } from "ol/source";
 import { Modify } from "ol/interaction";
 import { Feature } from "ol";
-import { Geometry } from "ol/geom";
+import { Geometry, LineString, Polygon, MultiPolygon, MultiLineString } from "ol/geom";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Fill, Stroke, Style, Circle as CircleStyle } from "ol/style";
 
@@ -20,8 +20,9 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<Map | null>(null);
   const vectorSourceRef = useRef<VectorSource | null>(null);
-  const vectorLayerRef = useRef<VectorLayer | null>(null);
+
   const [coordsText, setCoordsText] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isOpen || !mapRef.current) return;
@@ -37,9 +38,7 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
 
     const source = new VectorSource({ features: [clonedFeature] });
     const layer = new VectorLayer({ source, style });
-
     vectorSourceRef.current = source;
-    vectorLayerRef.current = layer;
 
     const map = new Map({
       target: mapRef.current,
@@ -52,28 +51,61 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
     });
 
     const extent = clonedFeature.getGeometry()?.getExtent();
-    if (extent) {
-      map.getView().fit(extent, { padding: [20, 20, 20, 20], maxZoom: 16 });
-    }
+    if (extent) map.getView().fit(extent, { padding: [20, 20, 20, 20], maxZoom: 16 });
 
     const modify = new Modify({ source });
     map.addInteraction(modify);
+
     mapInstance.current = map;
 
-    // 🧭 Координаты (в LonLat) — для просмотра
-    const geom = clonedFeature.getGeometry();
-    if (geom && "getCoordinates" in geom) {
-      const convertCoords = (coord: any): any =>
-        typeof coord[0] === "number" ? toLonLat(coord) : coord.map(convertCoords);
-      const coords = convertCoords((geom as any).getCoordinates());
-      setCoordsText(JSON.stringify(coords, null, 2));
-    }
+    // 🧭 Устанавливаем координаты в textarea
+    const geometry = clonedFeature.getGeometry();
+    if (!geometry) return;
+    
+    const coordsRaw = (geometry as any).getCoordinates();
+    const convertCoords = (coord: any): any =>
+      typeof coord[0] === "number" ? toLonLat(coord) : coord.map(convertCoords);
+    
+    const coords = convertCoords(coordsRaw);
+    setCoordsText(JSON.stringify(coords, null, 2));
 
     return () => {
       map.setTarget(undefined);
       mapInstance.current = null;
     };
   }, [isOpen]);
+
+  // ✅ Обработка изменения текста в textarea
+  const handleCoordsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setCoordsText(newText);
+
+    try {
+      const parsed = JSON.parse(newText);
+
+      const convertBack = (coord: any): any =>
+        typeof coord[0] === "number" ? fromLonLat(coord) : coord.map(convertBack);
+
+      const transformed = convertBack(parsed);
+
+      const geomType = feature.getGeometry()?.getType();
+      let newGeometry: Geometry | null = null;
+
+      switch (geomType) {
+        case "LineString": newGeometry = new LineString(transformed); break;
+        case "Polygon": newGeometry = new Polygon(transformed); break;
+        case "MultiPolygon": newGeometry = new MultiPolygon(transformed); break;
+        case "MultiLineString": newGeometry = new MultiLineString(transformed); break;
+        default: throw new Error("Unsupported geometry type");
+      }
+
+      vectorSourceRef.current?.getFeatures()[0].setGeometry(newGeometry);
+      setError("");
+
+    } catch (err) {
+      setError("❌ Неверный формат координат или JSON");
+    }
+  };
 
   const handleSave = () => {
     if (!vectorSourceRef.current) return;
@@ -85,19 +117,21 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-window large horizontal" onClick={(e) => e.stopPropagation()}>
         <h2>Редактирование геометрии</h2>
         <div className="horizontal-content">
           <textarea
-            className="coords-view"
             value={coordsText}
-            readOnly
+            onChange={handleCoordsChange}
+            rows={10}
+            className="coords-textarea"
           />
           <div ref={mapRef} className="geometry-edit-map" />
         </div>
+        {error && <div className="error-message">{error}</div>}
         <div className="modal-buttons">
-          <button onClick={handleSave} className="btn-save">💾 Сохранить</button>
+          <button onClick={handleSave} className="btn-save" disabled = {!!error}>💾 Сохранить</button>
           <button onClick={onClose} className="btn-cancel">Отмена</button>
         </div>
       </div>
