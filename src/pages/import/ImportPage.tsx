@@ -22,6 +22,7 @@ export const ImportPage: React.FC = () => {
   const { startAddMode } = useAddMode();
   const { zoomToFeature } = useMap();
   const { movingFeature } = useMoveMode();
+  const { cancelAddMode } = useAddMode();
 
   const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
   const geometryTypes = useMemo<GeometryType[]>(() => {
@@ -41,6 +42,7 @@ export const ImportPage: React.FC = () => {
   // Очищаем карту и сбрасываем ввод
   const handleClearMap = () => {
     setParsedData(null);
+    cancelAddMode();
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -106,9 +108,10 @@ export const ImportPage: React.FC = () => {
   return (
     <div className="import-container">
       <div className="import-header">
-        <h1 className="import-title">Импорт</h1>
+        <h1 className="import-title">OpenLayers Project</h1>
         <div className="import-buttons">
           <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
+  
           <button
             className="add-button"
             onClick={() => setModalOpen(true)}
@@ -116,12 +119,13 @@ export const ImportPage: React.FC = () => {
           >
             ➕ Добавить объект
           </button>
+  
           <button className="clear-button" onClick={handleClearMap}>
             🗑 Очистить карту
           </button>
         </div>
       </div>
-
+  
       <div className="map-container">
         <MapPreview
           geojsonData={parsedData || { type: "FeatureCollection", features: [] }}
@@ -129,12 +133,11 @@ export const ImportPage: React.FC = () => {
           onMoveFeature={handleMoveFeature}
         />
       </div>
-
+  
       <div className="table-wrapper">
-        <h2 className="table-title">Таблица данных</h2>
         <FeatureTable geojsonData={parsedData} onUpdate={setParsedData} />
       </div>
-
+  
       <AddFeatureModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

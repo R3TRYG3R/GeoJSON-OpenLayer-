@@ -226,7 +226,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
   };
 
   if (!geojsonData || !geojsonData.features?.length) {
-    return <p className="no-data">Нет данных</p>;
+    return;
   }
 
   return (

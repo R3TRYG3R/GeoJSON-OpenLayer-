@@ -60,15 +60,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileParsed, inputRef }
 
   return (
     <div>
-      <label htmlFor="file-upload" className="upload-button">
-        Загрузить файл
+      <label htmlFor="file-upload" className="upload-btn">
+        📂 Загрузить файл
       </label>
       <input
         type="file"
         id="file-upload"
         ref={inputRef}
         onChange={handleFileChange}
-        className="hidden"
+        className="hidden-input"
         accept=".csv,.json,.geojson,.zip"
       />
       {error && <p className="error-message">{error}</p>}

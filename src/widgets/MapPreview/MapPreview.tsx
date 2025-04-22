@@ -127,6 +127,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   // рисование новых фич
   useEffect(() => {
     if (!isMapReady || !mapInstance.current || !vectorSourceRef.current) return;
+    if (!geojsonData?.features?.length) return;
     const map = mapInstance.current;
     if (drawRef.current) {
       map.removeInteraction(drawRef.current);
@@ -153,7 +154,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
     return () => {
       if (drawRef.current) mapInstance.current?.removeInteraction(drawRef.current);
     };
-  }, [isAdding, selectedType, isMapReady]);
+  }, [isAdding, selectedType, isMapReady, geojsonData]);
 
   return (
     <>
