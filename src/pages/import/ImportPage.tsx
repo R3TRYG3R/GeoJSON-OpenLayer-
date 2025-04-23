@@ -105,18 +105,40 @@ export const ImportPage: React.FC = () => {
     startAddMode(type);
   };
 
+  // Экспорт файла
+  const handleExport = () => {
+    if (!parsedData) return;
+  
+    const dataStr = JSON.stringify(parsedData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+  
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "export.geojson";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="import-container">
       <div className="import-header">
         <h1 className="import-title">OpenLayers Project</h1>
         <div className="import-buttons">
+        <button
+            className="export-button"
+            onClick={handleExport}
+            disabled={!parsedData}
+          >
+            📤 Экспортировать GeoJSON
+          </button>
           <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
   
           <button
-            className="add-button"
-            onClick={() => setModalOpen(true)}
-            disabled={!parsedData}
-          >
+            className="add-button" onClick={() => setModalOpen(true)} disabled={!parsedData}>
             ➕ Добавить объект
           </button>
   

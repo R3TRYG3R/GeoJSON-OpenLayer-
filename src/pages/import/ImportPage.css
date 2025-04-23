@@ -25,6 +25,17 @@
   gap: 10px;
 }
 
+/* Кнопка добавления объекта */
+.add-button {
+  padding: 8px 16px;
+  background-color: #007bff;  /* Синий цвет */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
 /* Кнопка очистки */
 .clear-button {
   padding: 8px 16px;
@@ -35,10 +46,7 @@
   cursor: pointer;
 }
 
-.clear-button:hover {
-  background-color: darkred;
-}
-
+/* Кнопка загрузки */
 .upload-btn {
   display: inline-block;
   background-color: #28a745;   /* Зеленая кнопка */
@@ -51,8 +59,40 @@
   text-align: center;
 }
 
+/* Кнопка экспорта */
+.export-button {
+  padding: 8px 16px;
+  background-color: #000000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-button:hover {
+  background-color: #0056b3;
+}
+
+.clear-button:hover {
+  background-color: darkred;
+}
+
 .upload-btn:hover {
   background-color: #218838;
+}
+
+.export-button:hover {
+  background-color: #0a0066;
+}
+
+.add-button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
+.export-button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
 }
 
 .hidden-input {
