@@ -307,7 +307,7 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
         </tbody>
       </table>
 
-      {/* 🧠 Модальные окна в зависимости от типа */}
+      {/* Модальные окна в зависимости от типа */}
       {modalFeature && modalOpen && (
         modalFeature.getGeometry()?.getType() === "Point" ? (
           <EditGeometryModal
@@ -321,6 +321,11 @@ export const FeatureTable: React.FC<FeatureTableProps> = ({ geojsonData, onUpdat
             isOpen={modalOpen}
             onClose={() => setModalOpen(false)}
             feature={modalFeature}
+            allFeatures={
+              new GeoJSON().readFeatures(geojsonData, {
+                featureProjection: "EPSG:3857"
+              }) as Feature<Geometry>[]
+            }
             onSave={handleUpdatedFeature}
           />
         )

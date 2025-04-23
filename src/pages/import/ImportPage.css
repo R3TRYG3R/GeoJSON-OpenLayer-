@@ -1,9 +1,14 @@
+body {
+  overflow: hidden;
+}
+
 /* Контейнер всей страницы */
 .import-container {
   display: flex;
   flex-direction: column;
   height: 100vh; /* Вся высота экрана */
-  padding: 16px;
+  padding-top: 10px;
+  overflow: hidden;
 }
 
 /* Верхний блок (заголовок + кнопки) */
@@ -103,7 +108,7 @@
 .map-container {
   flex-shrink: 0;
   height: 400px; /* Оставляем фиксированную высоту карты */
-  border: 2px solid gray;
+  border: 1px solid gray;
   margin-bottom: 12px;
 }
 
