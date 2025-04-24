@@ -9,7 +9,7 @@ import {
   Geometry,
 } from "ol/geom";
 import { toLonLat, fromLonLat } from "ol/proj";
-import { useMoveMode } from "../../context/MoveModeContext"; // 👈 добавлено
+import { useMoveMode } from "../../context/MoveModeContext";
 
 interface Props {
   isOpen: boolean;
@@ -24,7 +24,7 @@ export const EditGeometryModal: React.FC<Props> = ({ isOpen, onClose, feature, o
   const [coordsText, setCoordsText] = useState("");
   const [error, setError] = useState("");
 
-  const { startMoveMode } = useMoveMode(); // 👈 добавлено
+  const { startMoveMode } = useMoveMode(); 
 
   useEffect(() => {
     if (isOpen && geometry && geometryType) {
@@ -56,7 +56,7 @@ export const EditGeometryModal: React.FC<Props> = ({ isOpen, onClose, feature, o
       }
 
       feature.setGeometry(newGeometry);
-      onGeometryUpdate(); // Обновляем таблицу
+      onGeometryUpdate();
       onClose();
     } catch (err) {
       console.error("❌ Invalid coordinates:", err);

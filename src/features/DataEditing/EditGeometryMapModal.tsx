@@ -6,9 +6,10 @@ import { Vector as VectorLayer } from "ol/layer";
 import { Vector as VectorSource } from "ol/source";
 import { Modify } from "ol/interaction";
 import { Feature } from "ol";
-import { Geometry, LineString, Polygon, MultiPolygon, MultiLineString } from "ol/geom";
+import { Geometry, LineString, Polygon, MultiPolygon, MultiLineString, Point} from "ol/geom";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Fill, Stroke, Style, Circle as CircleStyle } from "ol/style";
+import { CoordinatesList } from "../../shared/ui/CoordinatesList/CoordinatesList";
 
 import "./EditGeometryMapModal.css";
 
@@ -24,49 +25,58 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<Map | null>(null);
   const editableSourceRef = useRef<VectorSource | null>(null);
+  const highlightSourceRef = useRef<VectorSource | null>(null);
 
-  const [coordsText, setCoordsText] = useState("");
-  const [error, setError] = useState("");
+  const [coordsArray, setCoordsArray] = useState<[number, number][]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [errors, setErrors] = useState<boolean[]>([]);
 
   useEffect(() => {
     if (!isOpen || !mapRef.current) return;
 
-    // 🎨 Стили
     const editableStyle = new Style({
       fill: new Fill({ color: "rgba(255, 0, 0, 0.2)" }),
       stroke: new Stroke({ color: "red", width: 2 }),
-      image: new CircleStyle({ radius: 5, fill: new Fill({ color: "red" }) }),
+      image: new CircleStyle({ radius: 6, fill: new Fill({ color: "red" }) }),
     });
 
     const backgroundStyle = new Style({
-      fill: new Fill({ color: "rgba(0, 0, 255, 0.1)" }),
+      fill: new Fill({ color: "rgba(0, 0, 255, 0.05)" }),
       stroke: new Stroke({ color: "blue", width: 1 }),
       image: new CircleStyle({ radius: 4, fill: new Fill({ color: "blue" }) }),
     });
 
-    // Клонируем редактируемую фичу
+    const highlightStyle = new Style({
+      image: new CircleStyle({
+        radius: 8,
+        fill: new Fill({ color: "yellow" }),
+        stroke: new Stroke({ color: "orange", width: 2 }),
+      }),
+    });
+
     const clonedFeature = feature.clone();
     clonedFeature.setId(feature.getId());
 
     const editableSource = new VectorSource({ features: [clonedFeature] });
-    const editableLayer = new VectorLayer({ source: editableSource, style: editableStyle });
     editableSourceRef.current = editableSource;
 
-    // Все остальные фичи (фоновые)
-    const backgroundFeatures = allFeatures
-      .filter(f => f.getId() !== feature.getId())
-      .map(f => f.clone());
+    const editableLayer = new VectorLayer({ source: editableSource, style: editableStyle });
 
+    const backgroundFeatures = allFeatures.filter(f => f.getId() !== feature.getId()).map(f => f.clone());
     const backgroundSource = new VectorSource({ features: backgroundFeatures });
     const backgroundLayer = new VectorLayer({ source: backgroundSource, style: backgroundStyle });
 
-    // Карта с OSM + слои
+    const highlightSource = new VectorSource();
+    const highlightLayer = new VectorLayer({ source: highlightSource, style: highlightStyle });
+    highlightSourceRef.current = highlightSource;
+
     const map = new Map({
       target: mapRef.current,
       layers: [
         new TileLayer({ source: new OSM() }),
         backgroundLayer,
-        editableLayer
+        editableLayer,
+        highlightLayer
       ],
       view: new View({
         center: fromLonLat([47.5769, 40.1431]),
@@ -81,18 +91,13 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
     const modify = new Modify({ source: editableSource });
     map.addInteraction(modify);
 
+    // Слушаем изменения геометрии
+    clonedFeature.getGeometry()?.on('change', updateCoordsArray);
+
+    // Первый раз загружаем координаты
+    updateCoordsArray();
+
     mapInstance.current = map;
-
-    // Координаты в textarea
-    const geometry = clonedFeature.getGeometry();
-    if (!geometry) return;
-
-    const coordsRaw = (geometry as any).getCoordinates();
-    const convertCoords = (coord: any): any =>
-      typeof coord[0] === "number" ? toLonLat(coord) : coord.map(convertCoords);
-
-    const coords = convertCoords(coordsRaw);
-    setCoordsText(JSON.stringify(coords, null, 2));
 
     return () => {
       map.setTarget(undefined);
@@ -100,32 +105,75 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
     };
   }, [isOpen]);
 
-  const handleCoordsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    setCoordsText(newText);
+  const flattenCoordinates = (coords: any): [number, number][] => {
+    if (typeof coords[0][0] === "number") return coords;
+    if (typeof coords[0][0][0] === "number") return coords[0];
+    if (typeof coords[0][0][0][0] === "number") return coords[0][0];
+    return [];
+  };
 
-    try {
-      const parsed = JSON.parse(newText);
-      const convertBack = (coord: any): any =>
-        typeof coord[0] === "number" ? fromLonLat(coord) : coord.map(convertBack);
+  const updateCoordsArray = () => {
+    const geometry = editableSourceRef.current?.getFeatures()[0].getGeometry();
+    if (!geometry) return;
 
-      const transformed = convertBack(parsed);
-      const geomType = feature.getGeometry()?.getType();
-      let newGeometry: Geometry | null = null;
+    const coordsRaw = (geometry as any).getCoordinates();
+    const flatCoords = flattenCoordinates(coordsRaw);
+    const lonLatCoords = flatCoords.map(c => toLonLat(c) as [number, number]);
+    setCoordsArray(lonLatCoords);
 
-      switch (geomType) {
-        case "LineString": newGeometry = new LineString(transformed); break;
-        case "Polygon": newGeometry = new Polygon(transformed); break;
-        case "MultiPolygon": newGeometry = new MultiPolygon(transformed); break;
-        case "MultiLineString": newGeometry = new MultiLineString(transformed); break;
-        default: throw new Error("Unsupported geometry type");
-      }
-
-      editableSourceRef.current?.getFeatures()[0].setGeometry(newGeometry);
-      setError("");
-    } catch (err) {
-      setError("❌ Неверный формат координат или JSON");
+    if (selectedIndex !== null) {
+      highlightPoint(selectedIndex);
     }
+  };
+
+  const highlightPoint = (index: number) => {
+    const coord = coordsArray[index];
+    if (!coord || !highlightSourceRef.current) return;
+
+    highlightSourceRef.current.clear();
+    const pointFeature = new Feature(new Point(fromLonLat(coord)));
+    highlightSourceRef.current.addFeature(pointFeature);
+  };
+
+  const handleSelectPoint = (index: number) => {
+    if (selectedIndex === index) {
+      setSelectedIndex(null);
+      highlightSourceRef.current?.clear();
+      const extent = editableSourceRef.current?.getFeatures()[0].getGeometry()?.getExtent();
+      if (extent) mapInstance.current?.getView().fit(extent, { padding: [20, 20, 20, 20], maxZoom: 16 });
+    } else {
+      setSelectedIndex(index);
+      highlightPoint(index);
+      mapInstance.current?.getView().animate({
+        center: fromLonLat(coordsArray[index]),
+        zoom: 16,
+        duration: 500,
+      });
+    }
+  };
+
+  const handleChangeCoordinate = (index: number, newCoord: [number, number]) => {
+    const updatedCoords = [...coordsArray];
+    updatedCoords[index] = newCoord;
+    setCoordsArray(updatedCoords);
+
+    const newErrors = updatedCoords.map(([lon, lat]) => 
+      isNaN(lon) || isNaN(lat) || lon < -180 || lon > 180 || lat < -90 || lat > 90
+    );
+    setErrors(newErrors);
+
+    const backCoords = updatedCoords.map(c => fromLonLat(c));
+
+    const geomType = feature.getGeometry()?.getType();
+    let newGeometry: Geometry | null = null;
+
+    if (geomType === "LineString") newGeometry = new LineString(backCoords);
+    if (geomType === "Polygon") newGeometry = new Polygon([backCoords]);
+    if (geomType === "MultiPolygon") newGeometry = new MultiPolygon([[backCoords]]);
+    if (geomType === "MultiLineString") newGeometry = new MultiLineString([backCoords]);
+
+    if (newGeometry) editableSourceRef.current?.getFeatures()[0].setGeometry(newGeometry);
+    highlightPoint(index);
   };
 
   const handleSave = () => {
@@ -138,20 +186,22 @@ export const EditGeometryMapModal: React.FC<Props> = ({ isOpen, onClose, feature
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-window large horizontal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal-window large horizontal">
         <h2>Редактирование геометрии</h2>
         <div className="horizontal-content">
-          <textarea
-            value={coordsText}
-            onChange={handleCoordsChange}
-            className="coords-textarea"
+          <CoordinatesList
+            coordinates={coordsArray}
+            selectedIndex={selectedIndex}
+            onSelect={handleSelectPoint}
+            onChange={handleChangeCoordinate}
+            errors={errors}
           />
           <div ref={mapRef} className="geometry-edit-map" />
         </div>
-        {error && <div className="error-message">{error}</div>}
         <div className="modal-buttons">
-          <button onClick={handleSave} className="btn-save" disabled={!!error}>💾 Сохранить</button>
+          <button onClick={handleSave} className="btn-save" disabled={errors.includes(true)}
+          >💾 Сохранить</button>
           <button onClick={onClose} className="btn-cancel">Отмена</button>
         </div>
       </div>
