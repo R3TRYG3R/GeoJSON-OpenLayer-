@@ -1,121 +1,108 @@
-// 📁 context/MapContext.tsx
-
-import { View, Map } from "ol";
+// src/context/MapContext.tsx
+import {
+  createContext,
+  useContext,
+  useRef,
+  MutableRefObject,
+  ReactNode,
+  useEffect,
+  useState,
+} from "react";
+import { Map, View } from "ol";
 import TileLayer from "ol/layer/Tile";
-import { fromLonLat } from "ol/proj";
 import { OSM } from "ol/source";
-import { createContext, useContext, useRef, RefObject, useEffect, useState } from "react";
-import { Geometry } from "ol/geom";
-import { Feature } from "ol";
+import { fromLonLat } from "ol/proj";
+import type Feature from "ol/Feature";
+import type { Geometry } from "ol/geom";
 
 interface MapContextType {
-  mapRef: RefObject<HTMLDivElement>;
-  mapInstance: RefObject<Map | null>;
+  mapRef: MutableRefObject<HTMLDivElement | null>;
+  mapInstance: MutableRefObject<Map | null>;
   isMapReady: boolean;
   zoomToFeature: (feature: Feature<Geometry>) => void;
 }
 
-export const AZERBAIJAN_CENTER = [47.5769, 40.1431];
+export const AZERBAIJAN_CENTER: [number, number] = [47.5769, 40.1431];
 export const AZERBAIJAN_ZOOM = 7.0;
 
 const MapContext = createContext<MapContextType | null>(null);
 
-export const MapProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isMapReady, setIsMapReady] = useState(false);
-  const mapRef = useRef<HTMLDivElement>(null!);
+export const MapProvider = ({ children }: { children: ReactNode }) => {
+  const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstance = useRef<Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current) return;
 
-    console.log("📌 mapRef.current найден, инициализируем карту...");
+    const resizeObserver = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
 
-    mapInstance.current = new Map({
-      target: mapRef.current!,
-      layers: [
-        new TileLayer({
-          source: new OSM({
-            attributions: [],
+      // Инициализируем карту ровно один раз, когда контейнер получил ненулевые размеры
+      if (!mapInstance.current && width > 0 && height > 0) {
+        console.log(
+          `📏 Инициализация карты при размере: ${Math.round(width)}×${Math.round(
+            height
+          )}`
+        );
+        mapInstance.current = new Map({
+          target: mapRef.current!,
+          layers: [
+            new TileLayer({
+              source: new OSM({ attributions: [] }),
+            }),
+          ],
+          view: new View({
+            center: fromLonLat(AZERBAIJAN_CENTER),
+            zoom: AZERBAIJAN_ZOOM,
           }),
-        }),
-      ],
-      view: new View({
-        center: fromLonLat(AZERBAIJAN_CENTER),
-        zoom: AZERBAIJAN_ZOOM,
-      }),
-      controls: [],
+          controls: [],
+        });
+        setIsMapReady(true);
+      }
+
+      // При любом изменении размера контейнера обновляем карту
+      mapInstance.current?.updateSize();
     });
 
-    setIsMapReady(true);
+    resizeObserver.observe(mapRef.current!);
 
     return () => {
+      resizeObserver.disconnect();
       mapInstance.current?.setTarget(undefined);
     };
   }, []);
 
   const zoomToFeature = (feature: Feature<Geometry>) => {
-    if (!mapInstance.current) return;
+    const map = mapInstance.current;
+    if (!map) return;
 
-    const geometry = feature.getGeometry();
-    if (!geometry) return;
+    const geom = feature.getGeometry();
+    if (!geom) return;
 
-    const extent = geometry.getExtent();
+    const extent = geom.getExtent();
+    if (!extent || extent.some((v) => !isFinite(v))) return;
 
-    // 🛡️ Защита от пустой или некорректной геометрии
-    if (!extent || extent.some((v) => !isFinite(v))) {
-      console.warn("⚠️ Невозможно зумировать на пустую или некорректную геометрию:", geometry);
-      return;
-    }
-
-    const type = geometry.getType();
-    const [minX, minY, maxX, maxY] = extent;
-    const extentSize = Math.max(maxX - minX, maxY - minY);
-    const center = [(minX + maxX) / 2, (minY + maxY) / 2];
-
-    let targetZoom = mapInstance.current.getView().getZoom() || 10;
-    const padding = [70, 70, 70, 70];
-
-    if (type === "Point") {
-      targetZoom = 14;
-    } else if (
-      type === "Polygon" ||
-      type === "LineString" ||
-      type === "MultiPolygon" ||
-      type === "MultiLineString"
-    ) {
-      if (extentSize < 500) {
-        targetZoom = 16;
-      } else if (extentSize > 50000) {
-        mapInstance.current.getView().animate({
-          center,
-          duration: 800,
-        });
-        return;
-      } else {
-        targetZoom = Math.min(targetZoom, 10);
-      }
-    }
-
-    mapInstance.current.getView().fit(extent, {
-      padding,
-      maxZoom: targetZoom,
+    map.getView().fit(extent, {
+      padding: [50, 50, 50, 50],
+      maxZoom: 16,
       duration: 800,
     });
-
-    console.log(`🔍 Приближаем объект типа ${type}, зум: ${targetZoom}`);
   };
 
   return (
-    <MapContext.Provider value={{ mapRef, mapInstance, isMapReady, zoomToFeature }}>
+    <MapContext.Provider
+      value={{ mapRef, mapInstance, isMapReady, zoomToFeature }}
+    >
       {children}
     </MapContext.Provider>
   );
 };
 
-export const useMap = () => {
-  const context = useContext(MapContext);
-  if (!context) {
-    throw new Error("MapProvider должен быть обёрнут вокруг компонентов!");
+export const useMap = (): MapContextType => {
+  const ctx = useContext(MapContext);
+  if (!ctx) {
+    throw new Error("MapProvider должен оборачивать ваше приложение!");
   }
-  return context;
+  return ctx;
 };

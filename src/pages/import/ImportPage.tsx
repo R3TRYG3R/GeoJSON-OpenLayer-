@@ -11,18 +11,19 @@ import { FileUpload } from "../../features/FileUpload/FileUpload";
 import { MapPreview } from "../../widgets/MapPreview/MapPreview";
 import { FeatureTable } from "../../widgets/FeatureTable/FeatureTable";
 import { AddFeatureModal } from "../../features/DataAdding/AddFeatureModal";
+import { VerticalSplitter } from "../../shared/ui/VerticalSplitter/VerticalSplitter";
 import "./ImportPage.css";
 
 export const ImportPage: React.FC = () => {
   const [parsedData, setParsedData] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [mapHeight, setMapHeight] = useState(638);
   const inputRef = useRef<HTMLInputElement>(null!);
 
   const { setSelectedFeature } = useSelectedFeature();
-  const { startAddMode } = useAddMode();
+  const { startAddMode, cancelAddMode } = useAddMode();
   const { zoomToFeature } = useMap();
   const { movingFeature } = useMoveMode();
-  const { cancelAddMode } = useAddMode();
 
   const [selectedGeometryType, setSelectedGeometryType] = useState<GeometryType>("Point");
   const geometryTypes = useMemo<GeometryType[]>(() => {
@@ -33,20 +34,12 @@ export const ImportPage: React.FC = () => {
     return Array.from(types);
   }, [parsedData]);
 
-  // Парсим файл
-  const handleFileParsed = (data: any) => {
-    console.log("📥 Данные переданы в ImportPage:", data);
-    setParsedData(data);
-  };
-
-  // Очищаем карту и сбрасываем ввод
+  const handleFileParsed = (data: any) => setParsedData(data);
   const handleClearMap = () => {
     setParsedData(null);
     cancelAddMode();
     if (inputRef.current) inputRef.current.value = "";
   };
-
-  // Добавление новой геометрии
   const handleAddGeometry = (coords: any) => {
     const newId = (parsedData?.features.length ?? 0) + 1;
     const newFeat = {
@@ -54,11 +47,7 @@ export const ImportPage: React.FC = () => {
       geometry: { type: selectedGeometryType, coordinates: coords },
       properties: { id: newId, name: `New ${selectedGeometryType} ${newId}` },
     };
-    setParsedData({
-      ...parsedData!,
-      features: [...parsedData!.features, newFeat],
-    });
-    // Сразу выделяем и зумим
+    setParsedData({ ...parsedData!, features: [...parsedData!.features, newFeat] });
     setTimeout(() => {
       const feat = new GeoJSON().readFeature(newFeat, {
         featureProjection: "EPSG:3857",
@@ -68,8 +57,6 @@ export const ImportPage: React.FC = () => {
       zoomToFeature(feat);
     }, 0);
   };
-
-  // Обработка перемещения существующей точки
   const handleMoveFeature = (id: string, coords: [number, number]) => {
     if (!parsedData) return;
     const updated = {
@@ -80,46 +67,33 @@ export const ImportPage: React.FC = () => {
           return {
             ...f,
             geometry: { type: "Point", coordinates: coords },
-            properties: {
-              ...f.properties,
-              longitude: coords[0],
-              latitude: coords[1],
-            },
+            properties: { ...f.properties, longitude: coords[0], latitude: coords[1] },
           };
         }
         return f;
       }),
     };
     setParsedData(updated);
-    // После обновления снова выделяем и зумим на тот же OL‑Feature
     if (movingFeature) {
       setSelectedFeature(movingFeature);
       zoomToFeature(movingFeature);
     }
   };
-
-  // Запуск режима добавления
   const handleGeometryTypeSelect = (type: GeometryType) => {
     setSelectedGeometryType(type);
     setModalOpen(false);
     startAddMode(type);
   };
-
-  // Экспорт файла
   const handleExport = () => {
     if (!parsedData) return;
-  
-    const dataStr = JSON.stringify(parsedData, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(parsedData, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
-  
     const link = document.createElement("a");
     link.href = url;
     link.download = "export.geojson";
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-  
     URL.revokeObjectURL(url);
   };
 
@@ -128,7 +102,7 @@ export const ImportPage: React.FC = () => {
       <div className="import-header">
         <h1 className="import-title">OpenLayers Project</h1>
         <div className="import-buttons">
-        <button
+          <button
             className="export-button"
             onClick={handleExport}
             disabled={!parsedData}
@@ -136,30 +110,41 @@ export const ImportPage: React.FC = () => {
             📤 Экспортировать GeoJSON
           </button>
           <FileUpload onFileParsed={handleFileParsed} inputRef={inputRef} />
-  
           <button
-            className="add-button" onClick={() => setModalOpen(true)} disabled={!parsedData}>
+            className="add-button"
+            onClick={() => setModalOpen(true)}
+            disabled={!parsedData}
+          >
             ➕ Добавить объект
           </button>
-  
           <button className="clear-button" onClick={handleClearMap}>
             🗑 Очистить карту
           </button>
         </div>
       </div>
-  
-      <div className="map-container">
-        <MapPreview
-          geojsonData={parsedData || { type: "FeatureCollection", features: [] }}
-          onAddGeometry={handleAddGeometry}
-          onMoveFeature={handleMoveFeature}
-        />
+
+      <div className="splitter-container">
+        {/* вот он — обёртчик без двойных бордеров */}
+        <div
+          className="map-wrapper"
+          style={{ height: `${mapHeight}px` }}
+        >
+          <MapPreview
+            geojsonData={
+              parsedData || { type: "FeatureCollection", features: [] }
+            }
+            onAddGeometry={handleAddGeometry}
+            onMoveFeature={handleMoveFeature}
+          />
+        </div>
+
+        <VerticalSplitter onResize={setMapHeight}/>
+
+        <div className="table-wrapper">
+          <FeatureTable geojsonData={parsedData} onUpdate={setParsedData} />
+        </div>
       </div>
-  
-      <div className="table-wrapper">
-        <FeatureTable geojsonData={parsedData} onUpdate={setParsedData} />
-      </div>
-  
+
       <AddFeatureModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

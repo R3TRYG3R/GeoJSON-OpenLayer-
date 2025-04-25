@@ -1,5 +1,6 @@
 // src/widgets/MapPreview/MapPreview.tsx
 import React, { useEffect, useRef } from "react";
+import Draw from "ol/interaction/Draw";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
 import GeoJSON from "ol/format/GeoJSON";
@@ -9,10 +10,9 @@ import { useSelectedFeature } from "../../context/SelectedFeatureContext";
 import { useAddMode } from "../../context/AddModeContext";
 import { useMoveMode } from "../../context/MoveModeContext";
 import Feature from "ol/Feature";
-import { MoveTooltip } from "../../features/MoveTooltip/MoveTooltip";
-import { Geometry } from "ol/geom";
-import Draw from "ol/interaction/Draw";
+import { Geometry, Point, LineString, Polygon, MultiLineString, MultiPolygon } from "ol/geom";
 import { Style, Fill, Stroke, Circle as CircleStyle } from "ol/style";
+import { MoveTooltip } from "../../features/MoveTooltip/MoveTooltip";
 
 interface MapPreviewProps {
   geojsonData: any;
@@ -25,7 +25,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   onAddGeometry,
   onMoveFeature,
 }) => {
-  const { mapRef, isMapReady, mapInstance } = useMap();
+  const { mapRef, mapInstance, isMapReady } = useMap();
   const { selectedFeature, setSelectedFeature } = useSelectedFeature();
   const { isAdding, selectedType, cancelAddMode } = useAddMode();
   const { isMoving, movingFeature, finishMoveMode } = useMoveMode();
@@ -34,127 +34,167 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   const vectorSourceRef = useRef<VectorSource | null>(null);
   const drawRef = useRef<Draw | null>(null);
 
+  // Рендерим GeoJSON-фичи и клики
   useEffect(() => {
     if (!isMapReady || !mapInstance.current) return;
     const map = mapInstance.current;
 
-    // если данных нет — сброс
-    if (!geojsonData?.features?.length) {
-      vectorLayerRef.current && map.removeLayer(vectorLayerRef.current);
+    // Удаляем старый векторный слой
+    if (vectorLayerRef.current) {
+      map.removeLayer(vectorLayerRef.current);
       vectorLayerRef.current = null;
+    }
+
+    // Если нет данных — центрируем на Азербайджан
+    if (!geojsonData?.features?.length) {
       map.getView().animate({
         center: fromLonLat(AZERBAIJAN_CENTER),
         zoom: AZERBAIJAN_ZOOM,
-        duration: 800,
+        duration: 500,
       });
       return;
     }
 
-    // читаем GeoJSON
+    // Читаем фичи из GeoJSON
     const features = new GeoJSON().readFeatures(geojsonData, {
       featureProjection: "EPSG:3857",
     });
     features.forEach((f, i) => f.setId(String(f.get("id") ?? i + 1)));
-    vectorSourceRef.current = new VectorSource({ features });
 
-    // стили
+    const source = new VectorSource({ features });
+    vectorSourceRef.current = source;
+
+    // Стили
     const defaultStyle = new Style({
       stroke: new Stroke({ color: "blue", width: 2 }),
-      fill: new Fill({ color: "rgba(0, 0, 255, 0.3)" }),
+      fill: new Fill({ color: "rgba(0,0,255,0.3)" }),
       image: new CircleStyle({ radius: 6, fill: new Fill({ color: "blue" }) }),
     });
     const selectedStyle = new Style({
       stroke: new Stroke({ color: "red", width: 3 }),
-      fill: new Fill({ color: "rgba(255, 0, 0, 0.3)" }),
+      fill: new Fill({ color: "rgba(255,0,0,0.3)" }),
       image: new CircleStyle({ radius: 6, fill: new Fill({ color: "red" }) }),
     });
 
-    // добавляем слой
-    vectorLayerRef.current = new VectorLayer({
-      source: vectorSourceRef.current,
-      style: feat =>
+    // Новый слой
+    const layer = new VectorLayer({
+      source,
+      style: (feat) =>
         selectedFeature && String(feat.getId()) === String(selectedFeature.getId())
           ? selectedStyle
           : defaultStyle,
     });
-    // удаляем предыдущие
-    map.getLayers().forEach(l => {
-      if (l instanceof VectorLayer) map.removeLayer(l);
-    });
-    map.addLayer(vectorLayerRef.current);
+    vectorLayerRef.current = layer;
+    map.addLayer(layer);
 
-    // подгон по extent
-    const ext = vectorSourceRef.current.getExtent();
-    if (ext && ext[0] !== Infinity) {
-      map.getView().fit(ext, {
+    // Fit к extent
+    const extent = source.getExtent();
+    if (extent && extent[0] !== Infinity) {
+      map.getView().fit(extent, {
         padding: [20, 20, 20, 20],
         maxZoom: 18,
-        duration: 1000,
+        duration: 800,
       });
     }
 
-    // клик: либо перемещение, либо выбор
+    // Обработчик клика
     const handleClick = (evt: any) => {
       const pixel = evt.pixel;
       const coord = map.getCoordinateFromPixel(pixel);
 
       if (isMoving && movingFeature) {
-        // 📍 сначала обновляем саму OL-геометрию
         finishMoveMode(coord);
-        // затем колбэк в ImportPage, который делает setParsedData + зум
-        const id = String(movingFeature.getId());
         const lonlat = toLonLat(coord) as [number, number];
-        onMoveFeature?.(id, lonlat);
+        onMoveFeature?.(String(movingFeature.getId()), lonlat);
         return;
       }
 
       let clicked: Feature<Geometry> | null = null;
-      map.forEachFeatureAtPixel(pixel, f => {
-        if (f instanceof Feature) {
-          clicked = f;
+      map.forEachFeatureAtPixel(
+        pixel,
+        (feat) => {
+          clicked = feat as Feature<Geometry>;
           return true;
-        }
-      }, { hitTolerance: 10 });
-
-      if (clicked) setSelectedFeature(clicked);
-      else setSelectedFeature(null);
+        },
+        { hitTolerance: 8 }
+      );
+      setSelectedFeature(clicked);
     };
 
     map.on("click", handleClick);
-    return () => void map.un("click", handleClick);
+
+    return () => {
+      map.un("click", handleClick);
+      if (vectorLayerRef.current) {
+        map.removeLayer(vectorLayerRef.current);
+        vectorLayerRef.current = null;
+      }
+    };
   }, [geojsonData, isMapReady, selectedFeature, isMoving]);
 
-  // рисование новых фич
+  // Draw-интеракция для добавления новых объектов
   useEffect(() => {
     if (!isMapReady || !mapInstance.current || !vectorSourceRef.current) return;
-    if (!geojsonData?.features?.length) return;
     const map = mapInstance.current;
+
+    // Снимаем старую Draw-интеракцию
     if (drawRef.current) {
       map.removeInteraction(drawRef.current);
       drawRef.current = null;
     }
+
     if (isAdding && selectedType) {
-      const draw = new Draw({
-        source: vectorSourceRef.current,
-        type: selectedType,
-      });
-      draw.on("drawend", e => {
-        const geom = e.feature.getGeometry() as any;
-        if (!geom || geom.getType() !== selectedType) return;
-        const coords = geom.getCoordinates();
+      const draw = new Draw({ source: vectorSourceRef.current, type: selectedType });
+      draw.on("drawend", (e) => {
+        const geom = e.feature.getGeometry();
+        if (!geom || geom.getType() !== selectedType) {
+          cancelAddMode();
+          return;
+        }
+
+        // Получаем «сырные» координаты в зависимости от типа геометрии
+        let rawCoords: any;
+        switch (selectedType) {
+          case "Point":
+            rawCoords = (geom as Point).getCoordinates();
+            break;
+          case "LineString":
+            rawCoords = (geom as LineString).getCoordinates();
+            break;
+          case "Polygon":
+            rawCoords = (geom as Polygon).getCoordinates();
+            break;
+          case "MultiLineString":
+            rawCoords = (geom as MultiLineString).getCoordinates();
+            break;
+          case "MultiPolygon":
+            rawCoords = (geom as MultiPolygon).getCoordinates();
+            break;
+          default:
+            rawCoords = [];
+        }
+
+        // Рекурсивно конвертим в lon/lat
         const convert = (c: any): any =>
-          typeof c[0] === "number" ? toLonLat(c) : c.map(convert);
-        const transformed = convert(coords);
-        onAddGeometry?.(transformed);
+          Array.isArray(c[0]) ? c.map(convert) : toLonLat(c);
+        const lonlat = convert(rawCoords);
+
+        onAddGeometry?.(lonlat);
         cancelAddMode();
       });
+
       map.addInteraction(draw);
       drawRef.current = draw;
     }
+
+    // чистка
     return () => {
-      if (drawRef.current) mapInstance.current?.removeInteraction(drawRef.current);
+      if (drawRef.current) {
+        map.removeInteraction(drawRef.current);
+        drawRef.current = null;
+      }
     };
-  }, [isAdding, selectedType, isMapReady, geojsonData]);
+  }, [isMapReady, isAdding, selectedType]);
 
   return (
     <>
