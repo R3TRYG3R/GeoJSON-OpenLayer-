@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from "react";
-import "./VerticalSplitter.css";
 
 interface Props {
   onResize: (newHeight: number) => void;
